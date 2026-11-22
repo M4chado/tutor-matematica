@@ -1,0 +1,11 @@
+# Bibliotecas do projeto (instale com: pip install -r requirements.txt)
+# As versões estão fixas para a instalação ser igual em qualquer computador.
+tensorflow==2.21.0       # CNN (roda na CPU)
+opencv-python==5.1.0.95  # webcam e recorte dos símbolos
+numpy==2.4.6             # contas com matrizes (imagens)
+sympy==1.14.0            # cálculo exato das contas (sem eval)
+gradio==6.32.0           # interface no navegador
+ollama==0.6.3            # conversa com o LLM local
+pyttsx3==2.99            # voz offline (opcional)
+matplotlib==3.11.2       # gráficos para a apresentação
+pytest==9.2.0            # testes automáticos

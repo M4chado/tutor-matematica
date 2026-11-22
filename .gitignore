@@ -1,0 +1,25 @@
+# Ambiente virtual (cada computador cria o seu)
+.venv/
+
+# Dataset e dados processados (grandes demais para o Git)
+data/raw/
+data/processed/*
+!data/processed/.gitkeep
+
+# Modelos treinados (arquivos grandes)
+models/*
+!models/.gitkeep
+*.keras
+*.h5
+*.npz
+
+# Arquivos temporários do Python e dos testes
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Arquivos do Gradio e do sistema
+.gradio/
+flagged/
+Thumbs.db
+.vscode/
