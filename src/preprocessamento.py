@@ -151,6 +151,26 @@ def _afinar(tinta):
     return img[1:-1, 1:-1].astype(bool)
 
 
+def normalizar_iluminacao(foto, lado_maximo=1000):
+    """Prepara uma FOTO (celular ou webcam) antes da função única.
+
+    Fotos têm sombras e papel acinzentado. Aqui estimamos o "fundo" (o papel)
+    apagando os traços com um filtro de fechamento, e dividimos a foto por
+    ele: o papel vira branco uniforme e só a tinta continua escura.
+    Imagens do dataset não precisam disso (já são limpas).
+    """
+    cinza = _para_cinza(foto)
+    altura, largura = cinza.shape
+    if max(altura, largura) > lado_maximo:  # foto grande: reduz para ficar rápido
+        escala = lado_maximo / max(altura, largura)
+        cinza = cv2.resize(cinza, (round(largura * escala), round(altura * escala)),
+                           interpolation=cv2.INTER_AREA)
+    k = max(15, min(cinza.shape) // 15) | 1  # tamanho ímpar, maior que a espessura do traço
+    elemento = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    fundo = cv2.morphologyEx(cinza, cv2.MORPH_CLOSE, elemento)
+    return cv2.divide(cinza, fundo, scale=255)
+
+
 def carregar_imagem(caminho):
     """Lê uma imagem do disco em tons de cinza.
 

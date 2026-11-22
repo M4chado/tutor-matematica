@@ -13,6 +13,9 @@ models/*
 *.h5
 *.npz
 
+# Fotos tiradas pelo usuário para testar (podem ser grandes)
+fotos_teste/
+
 # Arquivos temporários do Python e dos testes
 __pycache__/
 *.pyc

@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from config import CLASSES, MAPA_PASTAS, PASTA_IMAGENS_BRUTAS
-from preprocessamento import carregar_imagem, preprocessar
+from preprocessamento import carregar_imagem, normalizar_iluminacao, preprocessar
 
 
 def desenhar_sete(altura, largura, espessura, fundo=255, tinta=0):
@@ -79,6 +79,28 @@ def test_entrada_float_de_0_a_1():
     """Aceita também imagens já em 0..1 (como as que o Gradio pode entregar)."""
     img = desenhar_sete(100, 100, 6)
     assert np.array_equal(preprocessar(img), preprocessar(img / 255.0))
+
+
+def test_normalizar_iluminacao_remove_sombra():
+    """Papel com sombra forte (de 110 a 220) deve ficar quase todo branco,
+    e o traço deve continuar escuro."""
+    sombra = np.linspace(110, 220, 400, dtype=np.float32)[None, :].repeat(300, axis=0)
+    foto = sombra.astype(np.uint8)
+    cv2.line(foto, (100, 150), (300, 150), 20, 8)
+    limpa = normalizar_iluminacao(foto)
+    papel = limpa[20:100, :]                       # região sem traço
+    assert papel.min() > 200                       # sombra sumiu: papel claro em todo lugar
+    assert limpa[150, 200] < 100                   # o traço continua escuro
+
+
+def test_foto_com_sombra_vira_mesma_entrada_que_foto_limpa():
+    """Com a iluminação igualada, a sombra não muda o que a CNN vê."""
+    limpa = desenhar_sete(300, 240, 14, fundo=230, tinta=30)
+    sombra = np.linspace(0.5, 1.0, 240, dtype=np.float32)[None, :]
+    com_sombra = (limpa.astype(np.float32) * sombra).astype(np.uint8)
+    a = preprocessar(normalizar_iluminacao(limpa))
+    b = preprocessar(normalizar_iluminacao(com_sombra))
+    assert (a != b).mean() < 0.02                  # no máximo 2% dos pixels diferentes
 
 
 @pytest.mark.skipif(not PASTA_IMAGENS_BRUTAS.exists(), reason="dataset não está em data/raw/")
