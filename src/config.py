@@ -50,4 +50,10 @@ SEMENTE = 42                 # semente fixa: o sorteio sai sempre igual
 # (a versão qwen3:4b comum sempre pensa, mesmo com think=False)
 MODELO_LLM = "qwen3:4b-instruct"
 
-# Limites de confiança serão definidos na Etapa 6.
+# ---------------------------------------------------------------------------
+# Confiança da CNN
+# ---------------------------------------------------------------------------
+# Abaixo deste valor, o palpite é considerado "duvidoso": a caixa fica laranja
+# na tela e (na Etapa 6) o agente pergunta ao visitante antes de calcular.
+# Valor provisório, a ser calibrado na Etapa 6.
+LIMITE_CONFIANCA = 0.80

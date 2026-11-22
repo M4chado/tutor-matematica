@@ -15,6 +15,7 @@ models/*
 
 # Fotos tiradas pelo usuário para testar (podem ser grandes)
 fotos_teste/
+capturas/
 
 # Arquivos temporários do Python e dos testes
 __pycache__/

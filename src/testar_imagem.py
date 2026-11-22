@@ -26,6 +26,7 @@ from PIL import Image, ImageOps  # noqa: E402
 
 from config import CLASSES, PASTA_FIGURAS, PASTA_MODELOS, RAIZ  # noqa: E402
 from preprocessamento import normalizar_iluminacao, preprocessar  # noqa: E402
+from segmentacao import binarizar_foto  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -55,8 +56,7 @@ def isolar_simbolo(limpa):
        como os pontos do ÷.
     4. Devolve o recorte, com o resto pintado de branco.
     """
-    limiar, _ = cv2.threshold(limpa, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    tinta = (limpa < min(limiar, 200)).astype(np.uint8)  # 200: tinta precisa ser bem escura
+    tinta = binarizar_foto(limpa).astype(np.uint8)
     n, rotulos, estatisticas, _ = cv2.connectedComponentsWithStats(tinta, connectivity=8)
 
     altura, largura = tinta.shape
