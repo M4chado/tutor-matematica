@@ -54,6 +54,8 @@ MODELO_LLM = "qwen3:4b-instruct"
 # Confiança da CNN
 # ---------------------------------------------------------------------------
 # Abaixo deste valor, o palpite é considerado "duvidoso": a caixa fica laranja
-# na tela e (na Etapa 6) o agente pergunta ao visitante antes de calcular.
-# Valor provisório, a ser calibrado na Etapa 6.
+# na tela e o agente pergunta ao visitante antes de calcular.
+# Calibrado na Etapa 6 com o conjunto de VALIDAÇÃO (src/calibrar_confianca.py):
+# com 0,80 o agente pergunta em 4,1% dos símbolos e os erros que passam sem
+# pergunta caem de 2,5% para 1,1%. Acima de 0,90 as perguntas disparam.
 LIMITE_CONFIANCA = 0.80

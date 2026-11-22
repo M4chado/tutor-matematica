@@ -1,0 +1,427 @@
+{
+ "conjunto": "validacao",
+ "sem_perguntar": 0.025148780956037627,
+ "escolhido": 0.8,
+ "tabela": [
+  {
+   "limite": 0.3,
+   "perguntas": 0.0005759262814359762,
+   "erros_passando": 0.02457285467460165,
+   "contas_com_pergunta": 0.0034505861413335337
+  },
+  {
+   "limite": 0.31,
+   "perguntas": 0.000959877135726627,
+   "erros_passando": 0.024380879247456324,
+   "contas_com_pergunta": 0.005745460027822724
+  },
+  {
+   "limite": 0.32,
+   "perguntas": 0.0011518525628719525,
+   "erros_passando": 0.024188903820311,
+   "contas_com_pergunta": 0.006891244450678347
+  },
+  {
+   "limite": 0.33,
+   "perguntas": 0.0015358034171626032,
+   "erros_passando": 0.023996928393165674,
+   "contas_com_pergunta": 0.009179512487281993
+  },
+  {
+   "limite": 0.34,
+   "perguntas": 0.0017277788443079286,
+   "erros_passando": 0.023996928393165674,
+   "contas_com_pergunta": 0.010321997792234638
+  },
+  {
+   "limite": 0.35,
+   "perguntas": 0.001919754271453254,
+   "erros_passando": 0.023804952966020348,
+   "contas_com_pergunta": 0.011463385081611599
+  },
+  {
+   "limite": 0.36,
+   "perguntas": 0.0021117296985985793,
+   "erros_passando": 0.023804952966020348,
+   "contas_com_pergunta": 0.012603675199796771
+  },
+  {
+   "limite": 0.37,
+   "perguntas": 0.002303705125743905,
+   "erros_passando": 0.023804952966020348,
+   "contas_com_pergunta": 0.013742868990686774
+  },
+  {
+   "limite": 0.38,
+   "perguntas": 0.002879631407179881,
+   "erros_passando": 0.023421002111729698,
+   "contas_com_pergunta": 0.01715388083124847
+  },
+  {
+   "limite": 0.39,
+   "perguntas": 0.002879631407179881,
+   "erros_passando": 0.023421002111729698,
+   "contas_com_pergunta": 0.01715388083124847
+  },
+  {
+   "limite": 0.4,
+   "perguntas": 0.002879631407179881,
+   "erros_passando": 0.023421002111729698,
+   "contas_com_pergunta": 0.01715388083124847
+  },
+  {
+   "limite": 0.41,
+   "perguntas": 0.003455557688615857,
+   "erros_passando": 0.02322902668458437,
+   "contas_com_pergunta": 0.020555056059710974
+  },
+  {
+   "limite": 0.42,
+   "perguntas": 0.0036475331157611824,
+   "erros_passando": 0.02303705125743905,
+   "contas_com_pergunta": 0.021686599147763497
+  },
+  {
+   "limite": 0.43,
+   "perguntas": 0.003839508542906508,
+   "erros_passando": 0.02303705125743905,
+   "contas_com_pergunta": 0.022817052642180813
+  },
+  {
+   "limite": 0.44,
+   "perguntas": 0.004415434824342484,
+   "erros_passando": 0.022653100403148396,
+   "contas_com_pergunta": 0.0262018839564081
+  },
+  {
+   "limite": 0.45,
+   "perguntas": 0.005183336532923786,
+   "erros_passando": 0.02207717412171242,
+   "contas_com_pergunta": 0.03069978893998393
+  },
+  {
+   "limite": 0.46,
+   "perguntas": 0.005951238241505087,
+   "erros_passando": 0.02169322326742177,
+   "contas_com_pergunta": 0.0351803676572181
+  },
+  {
+   "limite": 0.47,
+   "perguntas": 0.005951238241505087,
+   "erros_passando": 0.02169322326742177,
+   "contas_com_pergunta": 0.0351803676572181
+  },
+  {
+   "limite": 0.48,
+   "perguntas": 0.006719139950086389,
+   "erros_passando": 0.02130927241313112,
+   "contas_com_pergunta": 0.03964367354295495
+  },
+  {
+   "limite": 0.49,
+   "perguntas": 0.0074870416586676905,
+   "erros_passando": 0.020733346131695144,
+   "contas_com_pergunta": 0.044089759908346626
+  },
+  {
+   "limite": 0.5,
+   "perguntas": 0.007679017085813016,
+   "erros_passando": 0.020541370704549818,
+   "contas_com_pergunta": 0.04519859718527974
+  },
+  {
+   "limite": 0.51,
+   "perguntas": 0.008638894221539644,
+   "erros_passando": 0.020157419850259168,
+   "contas_com_pergunta": 0.05072671917005522
+  },
+  {
+   "limite": 0.52,
+   "perguntas": 0.00959877135726627,
+   "erros_passando": 0.01996544442311384,
+   "contas_com_pergunta": 0.05622814304838153
+  },
+  {
+   "limite": 0.53,
+   "perguntas": 0.010558648492992897,
+   "erros_passando": 0.019389518141677865,
+   "contas_com_pergunta": 0.06170297207100883
+  },
+  {
+   "limite": 0.54,
+   "perguntas": 0.011134574774428873,
+   "erros_passando": 0.019005567287387216,
+   "contas_com_pergunta": 0.06497514679391059
+  },
+  {
+   "limite": 0.55,
+   "perguntas": 0.01247840276444615,
+   "erros_passando": 0.018621616433096563,
+   "contas_com_pergunta": 0.07257325705389872
+  },
+  {
+   "limite": 0.56,
+   "perguntas": 0.013630255327318104,
+   "erros_passando": 0.018045690151660587,
+   "contas_com_pergunta": 0.07904490477030723
+  },
+  {
+   "limite": 0.57,
+   "perguntas": 0.014782107890190056,
+   "erros_passando": 0.017661739297369937,
+   "contas_com_pergunta": 0.08547887563526568
+  },
+  {
+   "limite": 0.58,
+   "perguntas": 0.016509886734497985,
+   "erros_passando": 0.01708581301593396,
+   "contas_com_pergunta": 0.0950595719753603
+  },
+  {
+   "limite": 0.59,
+   "perguntas": 0.017277788443079287,
+   "erros_passando": 0.016893837588788634,
+   "contas_com_pergunta": 0.09929072952745399
+  },
+  {
+   "limite": 0.6,
+   "perguntas": 0.018045690151660587,
+   "erros_passando": 0.016893837588788634,
+   "contas_com_pergunta": 0.10350538814589327
+  },
+  {
+   "limite": 0.61,
+   "perguntas": 0.01919754271453254,
+   "erros_passando": 0.016125935880207335,
+   "contas_com_pergunta": 0.10979655321546511
+  },
+  {
+   "limite": 0.62,
+   "perguntas": 0.020157419850259168,
+   "erros_passando": 0.016125935880207335,
+   "contas_com_pergunta": 0.11501104681008534
+  },
+  {
+   "limite": 0.63,
+   "perguntas": 0.021117296985985794,
+   "erros_passando": 0.015358034171626032,
+   "contas_com_pergunta": 0.12020006164995656
+  },
+  {
+   "limite": 0.64,
+   "perguntas": 0.02169322326742177,
+   "erros_passando": 0.015358034171626032,
+   "contas_com_pergunta": 0.1233012822355457
+  },
+  {
+   "limite": 0.65,
+   "perguntas": 0.022845075830293722,
+   "erros_passando": 0.014974083317335381,
+   "contas_com_pergunta": 0.12947639992877613
+  },
+  {
+   "limite": 0.66,
+   "perguntas": 0.02303705125743905,
+   "erros_passando": 0.014974083317335381,
+   "contas_com_pergunta": 0.13050205353950772
+  },
+  {
+   "limite": 0.67,
+   "perguntas": 0.023996928393165674,
+   "erros_passando": 0.01459013246304473,
+   "contas_com_pergunta": 0.13561522909469415
+  },
+  {
+   "limite": 0.68,
+   "perguntas": 0.02457285467460165,
+   "erros_passando": 0.014398157035899405,
+   "contas_com_pergunta": 0.13867108887932578
+  },
+  {
+   "limite": 0.69,
+   "perguntas": 0.026684584373200232,
+   "erros_passando": 0.013822230754463429,
+   "contas_com_pergunta": 0.14979900008117186
+  },
+  {
+   "limite": 0.7,
+   "perguntas": 0.028028412363217507,
+   "erros_passando": 0.013438279900172777,
+   "contas_com_pergunta": 0.15681781954235663
+  },
+  {
+   "limite": 0.71,
+   "perguntas": 0.029372240353234786,
+   "erros_passando": 0.012862353618736801,
+   "contas_com_pergunta": 0.1637882859695432
+  },
+  {
+   "limite": 0.72,
+   "perguntas": 0.03014014206181609,
+   "erros_passando": 0.01247840276444615,
+   "contas_com_pergunta": 0.16774980285814167
+  },
+  {
+   "limite": 0.73,
+   "perguntas": 0.031675945478978694,
+   "erros_passando": 0.01247840276444615,
+   "contas_com_pergunta": 0.17562593026687012
+  },
+  {
+   "limite": 0.74,
+   "perguntas": 0.033595699750431945,
+   "erros_passando": 0.011902476483010174,
+   "contas_com_pergunta": 0.18538364961788212
+  },
+  {
+   "limite": 0.75,
+   "perguntas": 0.034555576886158575,
+   "erros_passando": 0.011710501055864849,
+   "contas_com_pergunta": 0.1902262970629811
+  },
+  {
+   "limite": 0.76,
+   "perguntas": 0.03589940487617585,
+   "erros_passando": 0.011518525628719524,
+   "contas_com_pergunta": 0.19696568156053906
+  },
+  {
+   "limite": 0.77,
+   "perguntas": 0.037435208293338455,
+   "erros_passando": 0.011326550201574198,
+   "contas_com_pergunta": 0.2046105373521523
+  },
+  {
+   "limite": 0.78,
+   "perguntas": 0.03858706085621041,
+   "erros_passando": 0.010942599347283548,
+   "contas_com_pergunta": 0.210304293834356
+  },
+  {
+   "limite": 0.79,
+   "perguntas": 0.03973891341908236,
+   "erros_passando": 0.010750623920138222,
+   "contas_com_pergunta": 0.2159640443193307
+  },
+  {
+   "limite": 0.8,
+   "perguntas": 0.041082741409099635,
+   "erros_passando": 0.010750623920138222,
+   "contas_com_pergunta": 0.2225243237431499
+  },
+  {
+   "limite": 0.81,
+   "perguntas": 0.04261854482626224,
+   "erros_passando": 0.010366673065847572,
+   "contas_com_pergunta": 0.22996571041273695
+  },
+  {
+   "limite": 0.82,
+   "perguntas": 0.04377039738913419,
+   "erros_passando": 0.010366673065847572,
+   "contas_com_pergunta": 0.23550771714393903
+  },
+  {
+   "limite": 0.83,
+   "perguntas": 0.045690151660587444,
+   "erros_passando": 0.010174697638702246,
+   "contas_com_pergunta": 0.24467052175792692
+  },
+  {
+   "limite": 0.84,
+   "perguntas": 0.04799385678633135,
+   "erros_passando": 0.009790746784411596,
+   "contas_com_pergunta": 0.2555449073905385
+  },
+  {
+   "limite": 0.85,
+   "perguntas": 0.049337684776348624,
+   "erros_passando": 0.009790746784411596,
+   "contas_com_pergunta": 0.26182782363497226
+  },
+  {
+   "limite": 0.86,
+   "perguntas": 0.051641389902092535,
+   "erros_passando": 0.00959877135726627,
+   "contas_com_pergunta": 0.2724957262471207
+  },
+  {
+   "limite": 0.87,
+   "perguntas": 0.05260126703781916,
+   "erros_passando": 0.00921482050297562,
+   "contas_com_pergunta": 0.2769026042142375
+  },
+  {
+   "limite": 0.88,
+   "perguntas": 0.054329045882127086,
+   "erros_passando": 0.009022845075830293,
+   "contas_com_pergunta": 0.2847789293722497
+  },
+  {
+   "limite": 0.89,
+   "perguntas": 0.05759262814359762,
+   "erros_passando": 0.008830869648684968,
+   "contas_com_pergunta": 0.2994614356553956
+  },
+  {
+   "limite": 0.9,
+   "perguntas": 0.0612401612593588,
+   "erros_passando": 0.0074870416586676905,
+   "contas_com_pergunta": 0.3155731947393472
+  },
+  {
+   "limite": 0.91,
+   "perguntas": 0.06450374352082934,
+   "erros_passando": 0.00710309080437704,
+   "contas_com_pergunta": 0.3297260767044573
+  },
+  {
+   "limite": 0.92,
+   "perguntas": 0.07045498176233442,
+   "erros_passando": 0.006719139950086389,
+   "contas_com_pergunta": 0.35490664839161923
+  },
+  {
+   "limite": 0.93,
+   "perguntas": 0.07717412171242082,
+   "erros_passando": 0.006143213668650413,
+   "contas_com_pergunta": 0.38238392911990826
+  },
+  {
+   "limite": 0.94,
+   "perguntas": 0.08216548281819927,
+   "erros_passando": 0.0055672873872144365,
+   "contas_com_pergunta": 0.40215814391580906
+  },
+  {
+   "limite": 0.95,
+   "perguntas": 0.09291610673833749,
+   "erros_passando": 0.005375311960069111,
+   "contas_com_pergunta": 0.4429621159437518
+  },
+  {
+   "limite": 0.96,
+   "perguntas": 0.10520253407563832,
+   "erros_passando": 0.00460741025148781,
+   "contas_com_pergunta": 0.48672693667089373
+  },
+  {
+   "limite": 0.97,
+   "perguntas": 0.12228834709157228,
+   "erros_passando": 0.0042234593971971586,
+   "contas_com_pergunta": 0.5427947741382257
+  },
+  {
+   "limite": 0.98,
+   "perguntas": 0.15031675945478978,
+   "erros_passando": 0.003263582261470532,
+   "contas_com_pergunta": 0.623692986237899
+  },
+  {
+   "limite": 0.99,
+   "perguntas": 0.20080629679401038,
+   "erros_passando": 0.002879631407179881,
+   "contas_com_pergunta": 0.7394372550607582
+  }
+ ]
+}
