@@ -115,4 +115,51 @@ def test_simbolo_duvidoso_fica_laranja():
 
 
 def test_interface_monta_sem_erro(modelo):
-    assert app.criar_interface(modelo) is not None
+    assert app.criar_interface(modelo, nome_voz="Microsoft Maria") is not None
+
+
+# ---------------------------------------------------------------------------
+# Voz (Etapa 8): com uma voz falsa, que só anota o que falaria
+# ---------------------------------------------------------------------------
+
+class VozFalsa:
+    def __init__(self):
+        self.falas, self.paradas = [], 0
+
+    def falar(self, texto):
+        self.falas.append(texto)
+
+    def parar(self):
+        self.paradas += 1
+
+
+def test_resposta_e_falada_so_com_a_voz_ligada(monkeypatch):
+    voz = VozFalsa()
+    monkeypatch.setattr(app, "VOZ", voz)
+    resposta = "Porque a multiplicação vem antes da soma."
+    list(app.conversar("por que?", Agente(chat=LLMFalso(resposta)), [], falar=False))
+    assert voz.falas == []
+    list(app.conversar("por que?", Agente(chat=LLMFalso(resposta)), [], falar=True))
+    assert voz.falas == [resposta]                      # fala a resposta, nunca o "Pensando..."
+
+
+def test_ligar_a_voz_le_a_ultima_resposta_e_desligar_cala(monkeypatch):
+    voz = VozFalsa()
+    monkeypatch.setattr(app, "VOZ", voz)
+    chat = [{"role": "user", "content": "oi"},
+            {"role": "assistant", "content": [{"type": "text", "text": "O resultado é 33!"}]}]
+    app.alternar_voz(True, chat)
+    assert voz.falas == ["O resultado é 33!"]
+    app.alternar_voz(False, chat)
+    assert voz.paradas == 1
+
+
+def test_nova_conta_cala_a_voz(monkeypatch):
+    voz = VozFalsa()
+    monkeypatch.setattr(app, "VOZ", voz)
+    app.recomecar(Agente(chat=LLMFalso()))
+    assert voz.paradas == 1
+
+
+def test_interface_sem_voz_monta_sem_erro(modelo):
+    assert app.criar_interface(modelo, nome_voz=None) is not None

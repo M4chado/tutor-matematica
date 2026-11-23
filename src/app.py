@@ -31,6 +31,7 @@ from config import LIMITE_CONFIANCA, MODELO_LLM  # noqa: E402
 from ferramentas import CRUZES  # noqa: E402
 from leitor_webcam import carregar_modelo, ler_quadro, salvar_captura  # noqa: E402
 from segmentacao import desenhar_leitura, ler_conta, montar_expressao  # noqa: E402
+from voz import Voz, descrever_voz  # noqa: E402
 
 TITULO = "Tutor de Matemática que Lê sua Letra"
 PENSANDO = "🤔 Pensando e conferindo a conta..."
@@ -141,7 +142,34 @@ def _rgb(bgr):
 # e a explicação quando o agente termina (o LLM leva uns 15 s).
 # ---------------------------------------------------------------------------
 
-def explicar_leitura(simbolos, anotada_bgr, agente, chat):
+VOZ = Voz()  # um só alto-falante: uma só voz para todo o programa
+
+
+def _falar_se_ligado(texto, falar):
+    """Etapa 8: fala a resposta em segundo plano (a tela não trava)."""
+    if falar:
+        VOZ.falar(texto)
+
+
+def _texto_da_mensagem(mensagem):
+    """O Gradio às vezes devolve o texto como lista de pedaços: junta tudo."""
+    conteudo = mensagem.get("content", "")
+    if isinstance(conteudo, list):
+        return " ".join(p.get("text", "") for p in conteudo if isinstance(p, dict))
+    return str(conteudo)
+
+
+def alternar_voz(ligada, chat):
+    """Caixa "Falar as respostas": ao ligar, lê a última resposta; ao desligar, cala."""
+    if not ligada:
+        VOZ.parar()
+        return
+    respostas = [_texto_da_mensagem(m) for m in chat or [] if m.get("role") == "assistant"]
+    if respostas and respostas[-1] != PENSANDO:
+        VOZ.falar(respostas[-1])
+
+
+def explicar_leitura(simbolos, anotada_bgr, agente, chat, falar=False):
     """Parte comum das duas abas: mostra a leitura da CNN e chama o agente."""
     anotada = _rgb(anotada_bgr)
     leitura = html_leitura(simbolos)
@@ -156,10 +184,11 @@ def explicar_leitura(simbolos, anotada_bgr, agente, chat):
     yield anotada, leitura, chat, gr.skip()
     resposta = agente.ler_conta(simbolos)
     chat = chat[:-1] + [{"role": "assistant", "content": resposta["texto"]}]  # troca o "Pensando..."
+    _falar_se_ligado(resposta["texto"], falar)
     yield anotada, leitura, chat, painel_agente(resposta, simbolos)
 
 
-def ler_webcam(quadro, agente, chat, modelo_cnn=None):
+def ler_webcam(quadro, agente, chat, falar=False, modelo_cnn=None):
     """Botão "Ler conta": usa o último quadro da webcam. Lê a tinta que está na
     folha (mão e fundo são ignorados); sem folha à vista, lê o retângulo-guia."""
     if quadro is None:
@@ -170,7 +199,7 @@ def ler_webcam(quadro, agente, chat, modelo_cnn=None):
     bgr = cv2.cvtColor(np.ascontiguousarray(quadro[..., :3]), cv2.COLOR_RGB2BGR)
     simbolos, anotada, _ = ler_quadro(bgr, modelo_cnn)
     salvar_captura(bgr, anotada)  # guarda em capturas/ (útil para os testes com pessoas)
-    yield from explicar_leitura(simbolos, anotada, agente, chat)
+    yield from explicar_leitura(simbolos, anotada, agente, chat, falar)
 
 
 def desenho_para_bgr(desenho):
@@ -188,7 +217,7 @@ def desenho_para_bgr(desenho):
     return cv2.cvtColor(np.ascontiguousarray(imagem), cv2.COLOR_RGB2BGR)
 
 
-def ler_desenho(desenho, agente, chat, modelo_cnn=None):
+def ler_desenho(desenho, agente, chat, falar=False, modelo_cnn=None):
     """Botão "Ler desenho": mesmo caminho da webcam, com a imagem inteira."""
     bgr = desenho_para_bgr(desenho)
     if bgr is None:
@@ -196,10 +225,10 @@ def ler_desenho(desenho, agente, chat, modelo_cnn=None):
         yield gr.skip(), gr.skip(), chat, gr.skip()
         return
     simbolos = ler_conta(bgr, modelo_cnn)  # o quadro de desenho já é uma "folha" limpa
-    yield from explicar_leitura(simbolos, desenhar_leitura(bgr, simbolos), agente, chat)
+    yield from explicar_leitura(simbolos, desenhar_leitura(bgr, simbolos), agente, chat, falar)
 
 
-def conversar(mensagem, agente, chat):
+def conversar(mensagem, agente, chat, falar=False):
     """Caixa de texto e atalhos: o visitante conversa com o agente."""
     mensagem = (mensagem or "").strip()
     if not mensagem:
@@ -209,11 +238,13 @@ def conversar(mensagem, agente, chat):
     yield "", chat, gr.skip()
     resposta = agente.responder(mensagem)
     chat = chat[:-1] + [{"role": "assistant", "content": resposta["texto"]}]  # troca o "Pensando..."
+    _falar_se_ligado(resposta["texto"], falar)
     yield "", chat, painel_agente(resposta)
 
 
 def recomecar(agente):
     """Botão "Nova conta": limpa a conversa e a tela."""
+    VOZ.parar()
     agente.nova_conversa()
     return [], None, html_leitura([]), "Ainda não houve nenhuma leitura.", None
 
@@ -222,8 +253,9 @@ def recomecar(agente):
 # A tela
 # ---------------------------------------------------------------------------
 
-def criar_interface(modelo_cnn):
-    """Monta a tela. modelo_cnn: a CNN já carregada (carregada uma vez só)."""
+def criar_interface(modelo_cnn, nome_voz=None):
+    """Monta a tela. modelo_cnn: a CNN já carregada (carregada uma vez só).
+    nome_voz: a voz do Windows que será usada (None = sem voz disponível)."""
     with gr.Blocks(title=TITULO, analytics_enabled=False) as interface:
         agente = gr.State(Agente)  # um agente (com o seu histórico) para cada aba do navegador
         quadro_webcam = gr.State(None)
@@ -265,6 +297,11 @@ def criar_interface(modelo_cnn):
                     atalhos = [gr.Button(t, size="sm") for t in
                                ("Por que nessa ordem?", "Me dá um exercício parecido", "Explica de novo, mais devagar")]
                     nova = gr.Button("🔄 Nova conta", size="sm", variant="stop")
+                with gr.Row():
+                    falar = gr.Checkbox(label="🔊 Falar as respostas" if nome_voz else "🔇 Voz indisponível",
+                                        value=False, interactive=bool(nome_voz), scale=3,
+                                        info=f"Voz: {nome_voz}" if nome_voz else "Nenhuma voz encontrada no Windows")
+                    parar_voz = gr.Button("⏹ Parar voz", size="sm", scale=1, interactive=bool(nome_voz))
                 with gr.Accordion("🔍 Por dentro do agente (para o professor)", open=False):
                     painel = gr.Markdown("Ainda não houve nenhuma leitura.")
 
@@ -273,15 +310,18 @@ def criar_interface(modelo_cnn):
                       show_progress="hidden", api_visibility="private")
         saidas_leitura = [leitura_imagem, leitura_html, chat, painel]
         # partial: entrega a CNN (carregada uma vez só) às funções dos botões
-        botao_webcam.click(partial(ler_webcam, modelo_cnn=modelo_cnn), [quadro_webcam, agente, chat], saidas_leitura,
-                           api_name="ler_webcam")
-        botao_desenho.click(partial(ler_desenho, modelo_cnn=modelo_cnn), [quadro, agente, chat], saidas_leitura,
-                            api_name="ler_desenho")
-        texto.submit(conversar, [texto, agente, chat], [texto, chat, painel], api_name="conversar")
-        enviar.click(conversar, [texto, agente, chat], [texto, chat, painel], api_visibility="private")
+        botao_webcam.click(partial(ler_webcam, modelo_cnn=modelo_cnn), [quadro_webcam, agente, chat, falar],
+                           saidas_leitura, api_name="ler_webcam")
+        botao_desenho.click(partial(ler_desenho, modelo_cnn=modelo_cnn), [quadro, agente, chat, falar],
+                            saidas_leitura, api_name="ler_desenho")
+        texto.submit(conversar, [texto, agente, chat, falar], [texto, chat, painel], api_name="conversar")
+        enviar.click(conversar, [texto, agente, chat, falar], [texto, chat, painel], api_visibility="private")
         for atalho in atalhos:
-            atalho.click(conversar, [atalho, agente, chat], [texto, chat, painel], api_visibility="private")
+            atalho.click(conversar, [atalho, agente, chat, falar], [texto, chat, painel], api_visibility="private")
         nova.click(recomecar, agente, [chat, leitura_imagem, leitura_html, painel, quadro], api_name="nova_conta")
+        # Voz (Etapa 8): rodam na hora, sem fila, para não esperar o LLM terminar
+        falar.change(alternar_voz, [falar, chat], None, queue=False, api_visibility="private")
+        parar_voz.click(VOZ.parar, None, None, queue=False, api_visibility="private")
 
     return interface
 
@@ -295,9 +335,14 @@ def main():
     modelo_cnn = carregar_modelo()                     # 1x só, na abertura
     print(f"Carregando o {MODELO_LLM} no Ollama...", end=" ", flush=True)
     print("pronto" if Agente().aquecer() else "FALHOU (abra o Ollama; o tutor usará a explicação automática)")
+    nome_voz = descrever_voz()
+    print(f"Voz: {nome_voz or 'indisponível (o tutor só escreve)'}")
     print(f"Tudo carregado em {time.perf_counter() - inicio:.0f} s. Abrindo http://localhost:7860 ...")
-    criar_interface(modelo_cnn).launch(server_name="127.0.0.1", server_port=7860, inbrowser=not args.sem_navegador,
-                                       theme=TEMA, css=CSS)
+    try:
+        criar_interface(modelo_cnn, nome_voz).launch(server_name="127.0.0.1", server_port=7860,
+                                                     inbrowser=not args.sem_navegador, theme=TEMA, css=CSS)
+    finally:
+        VOZ.parar()  # fechou o programa: a voz para junto
 
 
 if __name__ == "__main__":
