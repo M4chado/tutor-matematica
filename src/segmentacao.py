@@ -29,6 +29,65 @@ SOBREPOSICAO_Y_MAX = 0.5  # ...e quase não se sobrepor na vertical (estão um e
 MARGEM_RECORTE = 3
 
 
+# ---------------------------------------------------------------------------
+# Detecção da folha: só vale a tinta que está CERCADA DE PAPEL
+# ---------------------------------------------------------------------------
+LADO_DETECCAO = 640        # a folha é procurada numa versão pequena da foto (mais rápido)
+SATURACAO_PAPEL = 60       # papel é branco/cinza: pouca cor (0 a 255)
+BRILHO_MIN_PAPEL = 100     # e é claro: abaixo disso (0 a 255) não é papel
+AREA_MIN_FOLHA = 0.02      # uma região de papel ocupa pelo menos 2% da foto
+RETANGULAR_MIN = 0.70      # e tem formato de retângulo (área / retângulo que a envolve)
+SATURACAO_COR = 70         # tinta com mais cor que isso e matiz quente é estampa/pele, não caneta
+
+
+def mascara_da_folha(imagem_bgr, forma):
+    """Onde está o papel? Devolve um mapa do tamanho `forma` (altura, largura) em
+    que cada região de papel tem um número (1, 2, ...) e o resto é 0, ou None se
+    nenhuma folha for encontrada.
+
+    1. Papel = claro e sem cor (pouca saturação).
+    2. As bordas fortes (contorno da folha, dedos, prateleiras) cortam as regiões,
+       separando a folha do que está em volta.
+    3. Só ficam regiões grandes e com formato de retângulo (a folha).
+    4. Os "buracos" (a tinta escrita) são preenchidos: fazem parte da folha.
+    """
+    if imagem_bgr.ndim == 2:
+        imagem_bgr = cv2.cvtColor(imagem_bgr, cv2.COLOR_GRAY2BGR)
+    escala = LADO_DETECCAO / max(imagem_bgr.shape[:2])
+    pequena = cv2.resize(imagem_bgr, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(pequena, cv2.COLOR_BGR2HSV)
+    brilho = cv2.GaussianBlur(hsv[..., 2], (5, 5), 0)
+    limiar, _ = cv2.threshold(brilho, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    claro = brilho >= max(limiar, BRILHO_MIN_PAPEL)  # numa imagem toda escura, nada é papel
+    bordas = cv2.dilate(cv2.Canny(brilho, 20, 60), np.ones((3, 3), np.uint8))
+    papel = (claro & (hsv[..., 1] < SATURACAO_PAPEL) & (bordas == 0)).astype(np.uint8)
+    papel = cv2.morphologyEx(papel, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))  # corta pontes finas
+
+    folha = np.zeros(papel.shape, np.uint8)
+    n, rotulos, estatisticas, _ = cv2.connectedComponentsWithStats(papel, connectivity=8)
+    for i in range(1, n):
+        if estatisticas[i, cv2.CC_STAT_AREA] < AREA_MIN_FOLHA * papel.size:
+            continue
+        contornos, _ = cv2.findContours((rotulos == i).astype(np.uint8), cv2.RETR_EXTERNAL,
+                                        cv2.CHAIN_APPROX_SIMPLE)
+        contorno = max(contornos, key=cv2.contourArea)
+        _, (w, h), _ = cv2.minAreaRect(contorno)
+        if cv2.contourArea(contorno) / max(w * h, 1) >= RETANGULAR_MIN:
+            numero = int(folha.max()) + 1
+            cv2.drawContours(folha, [contorno], -1, numero, thickness=cv2.FILLED)  # preenche os buracos
+    if not folha.any():
+        return None
+    return cv2.resize(folha, (forma[1], forma[0]), interpolation=cv2.INTER_NEAREST)
+
+
+def _cor_de_caneta(pixels_bgr):
+    """Tinta de caneta é escura, preta ou azul. Vermelho, laranja, amarelo e cor
+    de pele (logotipos, dedos) são descartados."""
+    matiz, saturacao, _ = np.median(cv2.cvtColor(pixels_bgr.reshape(-1, 1, 3), cv2.COLOR_BGR2HSV), axis=0)[0]
+    quente = matiz < 35 or matiz > 155       # escala do OpenCV: 0 a 180
+    return not (saturacao > SATURACAO_COR and quente)
+
+
 def binarizar_foto(limpa):
     """True onde tem tinta. Otsu escolhe o limite; o teto de 200 evita que
     um papel levemente cinza vire "tinta" quando quase não há traço."""
@@ -88,28 +147,64 @@ def _e_ponto_do_dividir(pequeno, grupos, referencia):
     return False
 
 
-def segmentar(imagem):
+def segmentar(imagem, so_na_folha=False):
     """Encontra os símbolos de uma conta. Devolve uma lista (da esquerda para a
     direita) de dicionários com:
       - "caixa": (x, y, largura, altura) na imagem ORIGINAL
       - "recorte": o símbolo recortado (cinza, fundo branco)
       - "entrada": o recorte já pela função única, pronto para a CNN (45, 45, 1)
+
+    so_na_folha=True (fotos e webcam): só aceita tinta cercada de papel e com cor
+    de caneta. Assim mão, roupa, prateleira e o que mais estiver em volta da
+    folha são ignorados. Se nenhuma folha for encontrada, lê a imagem toda.
     """
-    largura_original = np.asarray(imagem).shape[1]
+    imagem = np.asarray(imagem)
+    largura_original = imagem.shape[1]
     limpa = normalizar_iluminacao(imagem)           # pode reduzir fotos grandes
     escala = largura_original / limpa.shape[1]      # para voltar às coordenadas originais
-    tinta = binarizar_foto(limpa).astype(np.uint8)
+    altura_img, largura_img = limpa.shape
+
+    folha = mascara_da_folha(imagem, limpa.shape) if so_na_folha else None
+    regiao_do_pedaco = {}  # em qual região de papel está cada pedaço de tinta
+    if folha is not None:
+        # O limite tinta/papel é calculado só DENTRO da folha (o fundo não atrapalha)
+        no_papel = folha > 0
+        limiar, _ = cv2.threshold(limpa[no_papel].reshape(-1, 1), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        tinta = ((limpa <= min(limiar, 200)) & no_papel).astype(np.uint8)
+        cores = cv2.resize(imagem if imagem.ndim == 3 else cv2.cvtColor(imagem, cv2.COLOR_GRAY2BGR),
+                           (largura_img, altura_img), interpolation=cv2.INTER_AREA)
+        margem = np.ones((7, 7), np.uint8)  # o papel precisa cercar a tinta com folga de 3 pixels
+    else:
+        tinta = binarizar_foto(limpa).astype(np.uint8)
 
     n, rotulos, estatisticas, _ = cv2.connectedComponentsWithStats(tinta, connectivity=8)
-    altura_img, largura_img = tinta.shape
 
     # 2 e 3a. Pedaços de tinta, sem os que tocam a borda e sem poeira óbvia
     pedacos = []
     for i in range(1, n):  # o rótulo 0 é o papel
         x, y, w, h, area = estatisticas[i]
         toca_borda = x == 0 or y == 0 or x + w >= largura_img or y + h >= altura_img
-        if not toca_borda and area >= AREA_MINIMA:
-            pedacos.append(_Grupo(i, x, y, w, h))
+        if toca_borda or area < AREA_MINIMA:
+            continue
+        if folha is not None:
+            y0, y1, x0, x1 = max(y - 3, 0), y + h + 3, max(x - 3, 0), x + w + 3
+            este = rotulos[y0:y1, x0:x1] == i
+            em_volta = folha[y0:y1, x0:x1][cv2.dilate(este.astype(np.uint8), margem) > 0]
+            cercado = em_volta.min() > 0 and em_volta.min() == em_volta.max()  # papel de uma região só
+            if not cercado or not _cor_de_caneta(cores[y0:y1, x0:x1][este]):
+                continue
+            regiao_do_pedaco[i] = int(em_volta[0])
+        pedacos.append(_Grupo(i, x, y, w, h))
+
+    # A conta está numa folha só: fica a região de papel com mais tinta escrita
+    # (outra região clara, como uma camisa branca, pode ter costuras e dobras)
+    if regiao_do_pedaco and pedacos:
+        tinta_por_regiao = {}
+        for p in pedacos:
+            r = regiao_do_pedaco[p.rotulos[0]]
+            tinta_por_regiao[r] = tinta_por_regiao.get(r, 0) + int(estatisticas[p.rotulos[0], cv2.CC_STAT_AREA])
+        escolhida = max(tinta_por_regiao, key=tinta_por_regiao.get)
+        pedacos = [p for p in pedacos if regiao_do_pedaco[p.rotulos[0]] == escolhida]
     if not pedacos:
         return []
 
@@ -163,9 +258,9 @@ def classificar(simbolos, modelo):
     return simbolos
 
 
-def ler_conta(imagem, modelo):
+def ler_conta(imagem, modelo, so_na_folha=False):
     """Segmenta e classifica: o caminho completo imagem -> lista de símbolos."""
-    return classificar(segmentar(imagem), modelo)
+    return classificar(segmentar(imagem, so_na_folha), modelo)
 
 
 def montar_expressao(simbolos):

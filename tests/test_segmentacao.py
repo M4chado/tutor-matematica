@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from config import CLASSES, PASTA_DADOS_PROCESSADOS, PASTA_MODELOS
-from segmentacao import classificar, montar_expressao, segmentar
+from segmentacao import classificar, mascara_da_folha, montar_expressao, segmentar
 
 TINTA, ESPESSURA = 30, 9
 
@@ -174,3 +174,70 @@ def test_conta_montada_com_imagens_da_validacao_e_lida_certo(modelo):
 
     lidos = classificar(segmentar(folha), modelo)
     assert montar_expressao(lidos) == "".join(conta)
+
+
+# ---------------------------------------------------------------------------
+# Detecção da folha: só vale a tinta cercada de papel
+# (cena sintética imitando uma foto com a folha segurada na mão)
+# ---------------------------------------------------------------------------
+
+def cena_com_folha(folha_cinza):
+    """Folha branca com a conta no meio de uma cena bagunçada (BGR)."""
+    gerador = np.random.default_rng(5)
+    cena = np.full((720, 1280, 3), (90, 110, 130), np.uint8)                 # parede/fundo
+    for _ in range(25):                                                       # "prateleira" colorida
+        x, y = int(gerador.integers(950, 1250)), int(gerador.integers(0, 690))
+        cor = tuple(int(c) for c in gerador.integers(0, 255, 3))
+        cv2.rectangle(cena, (x, y), (x + 30, y + 25), cor, -1)
+    cv2.rectangle(cena, (0, 0), (230, 720), (235, 235, 235), -1)              # "camisa branca"
+    cv2.putText(cena, "LOGO", (20, 300), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (40, 40, 220), 5)  # logotipo vermelho
+    cv2.line(cena, (60, 500), (120, 650), (60, 60, 60), 6)                    # dobra escura na camisa
+    alto, largo = folha_cinza.shape
+    y0, x0 = (720 - alto) // 2, 250
+    cena[y0:y0 + alto, x0:x0 + largo] = cv2.cvtColor(folha_cinza, cv2.COLOR_GRAY2BGR)
+    cv2.ellipse(cena, (x0 + largo, y0 + alto // 2), (60, 35), 0, 0, 360, (120, 160, 220), -1)  # "dedo"
+    return cena
+
+
+@pytest.fixture(scope="module")
+def conta_validacao(modelo):
+    """Folha (cinza, traço preto) com 12+7-3 escrito com exemplos da validação."""
+    dados = np.load(VALIDACAO)
+    X, y = dados["X"], dados["y"]
+    gerador = np.random.default_rng(2)
+    blocos = []
+    for simbolo in "12+7-3":
+        for i in gerador.permutation(np.where(y == CLASSES.index(simbolo))[0]):
+            bloco = cv2.resize(como_tinta_de_caneta(X[i]), (100, 100), interpolation=cv2.INTER_AREA)
+            sozinho = classificar(segmentar(cv2.copyMakeBorder(bloco, 40, 40, 40, 40, cv2.BORDER_CONSTANT,
+                                                               value=255)), modelo)
+            if len(sozinho) == 1 and sozinho[0]["simbolo"] == simbolo and sozinho[0]["confianca"] > 0.95:
+                blocos.append(bloco)
+                break
+    linha = np.hstack([np.hstack([b, np.full((100, 30), 255, np.uint8)]) for b in blocos])
+    return np.minimum(cv2.copyMakeBorder(linha, 80, 80, 60, 60, cv2.BORDER_CONSTANT, value=255), 245)
+
+
+@pytest.mark.skipif(not (MODELO.exists() and VALIDACAO.exists()), reason="modelo ou dados ainda não existem")
+def test_folha_ignora_tudo_em_volta(conta_validacao, modelo):
+    cena = cena_com_folha(conta_validacao)
+    sem_folha = segmentar(cena)
+    com_folha = classificar(segmentar(cena, so_na_folha=True), modelo)
+    assert montar_expressao(com_folha) == "12+7-3"
+    assert len(sem_folha) > len(com_folha)        # sem a detecção, o fundo vira "símbolo"
+
+
+def test_folha_nao_encontrada_devolve_none():
+    escura = np.full((480, 640, 3), 40, np.uint8)
+    assert mascara_da_folha(escura, escura.shape[:2]) is None
+
+
+def test_caneta_azul_vale_e_tinta_vermelha_nao():
+    folha = np.full((400, 600, 3), 240, np.uint8)
+    cv2.line(folha, (100, 200), (200, 200), (160, 40, 30), 8)   # azul (BGR)
+    cv2.line(folha, (400, 150), (400, 250), (40, 40, 210), 8)   # vermelho (BGR)
+    cena = cv2.copyMakeBorder(folha, 100, 100, 100, 100, cv2.BORDER_CONSTANT, value=(60, 70, 80))
+    simbolos = segmentar(cena, so_na_folha=True)
+    assert len(simbolos) == 1
+    x, _, w, _ = simbolos[0]["caixa"]
+    assert 180 < x + w / 2 < 330                                  # é o traço azul

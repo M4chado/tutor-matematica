@@ -16,6 +16,8 @@ models/*
 # Fotos tiradas pelo usuário para testar (podem ser grandes)
 fotos_teste/
 capturas/
+# Figura gerada com as fotos reais do usuário (mostra pessoa e ambiente: privacidade)
+reports/figuras/teste_fotos_usuario.png
 
 # Arquivos temporários do Python e dos testes
 __pycache__/

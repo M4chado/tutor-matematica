@@ -4,11 +4,13 @@ Como rodar (com o .venv ativado, na pasta do projeto):
     python src/testar_imagem.py                     # testa todas as fotos de fotos_teste/
     python src/testar_imagem.py foto1.jpg foto2.png # testa fotos específicas
 
-Para cada foto, mostra os 3 palpites mais prováveis com a confiança e gera
-reports/figuras/teste_fotos_usuario.png, com o que a rede "viu" em cada foto.
+Para cada símbolo encontrado, mostra os 3 palpites mais prováveis com a
+confiança e gera reports/figuras/teste_fotos_usuario.png, com o que a rede "viu".
 
-Caminho de cada foto:
-  foto -> igualar iluminação -> isolar o símbolo -> função ÚNICA preprocessar() -> CNN
+Caminho de cada foto (o mesmo da webcam):
+  foto -> achar a folha -> igualar iluminação -> recortar cada símbolo cercado de papel
+       -> função ÚNICA preprocessar() -> CNN
+Mão, roupa e o que estiver atrás da folha são ignorados.
 """
 import os
 import sys
@@ -24,9 +26,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from PIL import Image, ImageOps  # noqa: E402
 
-from config import CLASSES, PASTA_FIGURAS, PASTA_MODELOS, RAIZ  # noqa: E402
-from preprocessamento import normalizar_iluminacao, preprocessar  # noqa: E402
-from segmentacao import binarizar_foto  # noqa: E402
+from config import PASTA_FIGURAS, PASTA_MODELOS, RAIZ  # noqa: E402
+from segmentacao import classificar, desenhar_leitura, segmentar  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -42,44 +43,8 @@ def ler_foto(caminho):
     """Lê a foto já na posição certa: o celular guarda a rotação numa
     etiqueta (EXIF) em vez de girar a imagem, e o OpenCV pode ignorá-la."""
     with Image.open(caminho) as imagem:
-        imagem = ImageOps.exif_transpose(imagem).convert("L")
-        return np.array(imagem)
-
-
-def isolar_simbolo(limpa):
-    """Recorta só o símbolo, descartando sujeira e o que encosta na borda da foto.
-
-    1. Separa tinta e papel (limiar de Otsu).
-    2. Encontra os "pedaços" de tinta (componentes conectados).
-    3. Descarta pedaços que tocam a borda da foto (mesa, dedo, borda do papel)
-       e pedaços minúsculos (poeira), mas mantém partes pequenas de verdade,
-       como os pontos do ÷.
-    4. Devolve o recorte, com o resto pintado de branco.
-    """
-    tinta = binarizar_foto(limpa).astype(np.uint8)
-    n, rotulos, estatisticas, _ = cv2.connectedComponentsWithStats(tinta, connectivity=8)
-
-    altura, largura = tinta.shape
-    candidatos = []
-    for i in range(1, n):  # o 0 é o fundo
-        x, y, w, h, area = estatisticas[i]
-        toca_borda = x == 0 or y == 0 or x + w >= largura or y + h >= altura
-        if not toca_borda:
-            candidatos.append((i, area))
-    if not candidatos:
-        return None
-
-    maior = max(area for _, area in candidatos)
-    manter = [i for i, area in candidatos if area >= 0.02 * maior]
-    mascara = np.isin(rotulos, manter)
-
-    linhas = np.where(mascara.any(axis=1))[0]
-    colunas = np.where(mascara.any(axis=0))[0]
-    margem = 5
-    y0, y1 = max(linhas[0] - margem, 0), min(linhas[-1] + margem + 1, altura)
-    x0, x1 = max(colunas[0] - margem, 0), min(colunas[-1] + margem + 1, largura)
-    recorte = np.where(mascara, limpa, 255).astype(np.uint8)
-    return recorte[y0:y1, x0:x1]
+        rgb = np.array(ImageOps.exif_transpose(imagem).convert("RGB"))
+    return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)  # colorida: a cor ajuda a achar a folha
 
 
 def listar_fotos(argumentos):
@@ -96,13 +61,13 @@ def listar_fotos(argumentos):
 
 
 def figura_resultados(resultados):
-    """Uma linha por foto: foto original | recorte | entrada da CNN | 3 palpites."""
+    """Uma linha por símbolo: foto (com a caixa) | recorte | entrada da CNN | 3 palpites."""
     fig, eixos = plt.subplots(len(resultados), 4, figsize=(11, 2.3 * len(resultados)),
                               gridspec_kw={"width_ratios": [1.3, 1, 1, 1.6]}, squeeze=False)
     for linha, r in zip(eixos, resultados):
         for ax in linha:
             ax.set_xticks([]); ax.set_yticks([])
-        linha[0].imshow(r["foto"], cmap="gray")
+        linha[0].imshow(cv2.cvtColor(r["foto"], cv2.COLOR_BGR2RGB))
         linha[0].set_title(r["nome"], fontsize=9, color=COR_TEXTO_2)
         if r["entrada"] is not None:
             linha[1].imshow(r["recorte"], cmap="gray")
@@ -141,22 +106,20 @@ def main():
         except Exception as erro:
             print(f"\n{caminho.name}: não consegui abrir ({erro})")
             continue
-        limpa = normalizar_iluminacao(foto)
-        recorte = isolar_simbolo(limpa)
-        r = {"nome": caminho.name, "foto": limpa, "recorte": recorte, "entrada": None, "palpites": []}
-        if recorte is None:
-            print(f"\n{caminho.name}: nenhum símbolo encontrado (a foto está muito clara ou o símbolo toca a borda?)")
-        else:
-            entrada = preprocessar(recorte)  # a MESMA função usada no dataset
-            probabilidades = modelo.predict(entrada[np.newaxis], verbose=0)[0]
-            top3 = np.argsort(probabilidades)[::-1][:3]
-            r["entrada"] = entrada
-            r["palpites"] = [(CLASSES[i], float(probabilidades[i])) for i in top3]
-            print(f"\n{caminho.name}:")
-            for posicao, (simbolo, p) in enumerate(r["palpites"], start=1):
-                barra = "█" * round(20 * p)
-                print(f"   {posicao}º  {simbolo}  {100 * p:5.1f}%  {barra}")
-        resultados.append(r)
+        # O mesmo caminho da webcam: só a tinta cercada de papel, pela função única preprocessar()
+        simbolos = classificar(segmentar(foto, so_na_folha=True), modelo)
+        if not simbolos:
+            print(f"\n{caminho.name}: nenhum símbolo encontrado "
+                  "(o traço está fino/claro demais ou o símbolo encosta na borda da folha?)")
+            resultados.append({"nome": caminho.name, "foto": foto, "entrada": None})
+            continue
+        for n, s in enumerate(simbolos, start=1):
+            nome = caminho.name if len(simbolos) == 1 else f"{caminho.name} ({n} de {len(simbolos)})"
+            print(f"\n{nome}:")
+            for posicao, (simbolo, p) in enumerate(s["top3"], start=1):
+                print(f"   {posicao}º  {simbolo}  {100 * p:5.1f}%  {'█' * round(20 * p)}")
+            resultados.append({"nome": nome, "foto": desenhar_leitura(foto, [s]), "recorte": s["recorte"],
+                               "entrada": s["entrada"], "palpites": s["top3"]})
 
     if resultados:
         PASTA_FIGURAS.mkdir(parents=True, exist_ok=True)
