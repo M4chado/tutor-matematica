@@ -78,6 +78,7 @@ Pelo terminal, com o `.venv` ativado:
 - Escreva a conta **em uma linha**, com símbolos de uns 3 a 5 cm de altura.
 - Ilumine bem a folha. Ela pode ser segurada na mão: o programa encontra a folha sozinho.
 - Escreva no meio da folha: um símbolo que encosta na borda do papel pode ser descartado.
+- Escreva o `1` como um traço reto, sem "gancho" no alto: com gancho, a rede pode confundi-lo com `)`.
 - Plano B: a aba **✏️ Desenhar** da interface, para escrever a conta com o mouse.
 
 ---
@@ -145,7 +146,20 @@ Se a confiança da CNN em um símbolo fica abaixo de **80%**, o agente pergunta 
 
 - **Fotos do autor** (folha segurada na mão, com prateleira e camisa ao fundo): 4 de 4 símbolos certos (`÷`, `+`, `x`, `−`), depois da detecção automática da folha. Antes dela, o fundo virava dezenas de "símbolos" inventados.
 - **Ensaio sem internet, à noite, com luz fraca vindo de um lado** e a cabeça de quem segurava a folha aparecendo atrás dela: a conta `4 + 5 × 2` foi lida certa nas 3 capturas, com 15 de 15 símbolos certos. A 1ª versão da detecção da folha errou essas capturas; a correção mede o papel com a luz já corrigida e descarta manchas cheias (cabelo) e marcas fracas do verso do papel.
-- **Outras pessoas:** registrado em [`reports/testes_com_pessoas.md`](reports/testes_com_pessoas.md).
+- **Contas pela webcam** (Pessoa 1, o autor; à noite, com luz fraca e a webcam do notebook):
+
+  | Conta escrita | Conta lida | Símbolos certos | O que o tutor fez |
+  | --- | --- | --- | --- |
+  | `4x+5=21` | `4×+5=2)` | 6/7 | avisou que havia um `)` sem `(` |
+  | `4x+5=21` | `+5=2)` | 4/7 | avisou que havia um `)` sem `(` |
+  | `4x+5=21` | `4×+5=2)` | 6/7 | perguntou: "+ ou 7?" e ") ou 1?" |
+  | `4+5×2` | `475×2` | 4/5 | perguntou: "7 ou +?" |
+
+  **20 de 26 símbolos certos (77%).** O `×` lido no lugar do `x` conta como certo, porque o tutor decide pelo contexto. O erro mais comum foi o **`1` escrito com "gancho" no alto, lido como `)`**, a mesma confusão `1` ↔ `(`/`)` que aparece na matriz de confusão.
+
+  O mais importante: **em nenhuma das 4 contas o tutor deu uma resposta errada.** Quando a rede estava em dúvida, ele perguntou. Quando a leitura saiu impossível (um `)` sem `(`), ele avisou e pediu para conferir. É o agente protegendo o visitante dos erros da rede.
+
+- **Outras pessoas:** os testes com a letra de outras pessoas (Pessoas 2 a 10) serão feitos na feira e registrados em [`reports/testes_com_pessoas.md`](reports/testes_com_pessoas.md).
 
 ### 7. Ensaio final (sem internet)
 
@@ -174,7 +188,7 @@ Um teste confere que o código das ferramentas não usa `eval`, `exec` nem `symp
 - **Traço fino ou claro** (esferográfica azul a meio metro) quase não aparece na imagem da webcam.
 - **Só contas em uma linha:** frações empilhadas, potências, raízes e decimais ficam fora do escopo.
 - **Equações só do 1º grau**, com uma incógnita (`x`).
-- **Os pares `x`/`×` e `1`/`(`/`)`** são os mais confundidos pela CNN. O primeiro é resolvido pelo contexto; o segundo, perguntando ao visitante.
+- **Os pares `x`/`×` e `1`/`(`/`)`** são os mais confundidos pela CNN, inclusive nos testes reais (o `1` com gancho vira `)`). O primeiro é resolvido pelo contexto. O segundo, perguntando ao visitante quando a rede está em dúvida, ou avisando que a conta saiu mal escrita quando ela erra com confiança alta.
 - **LLM na CPU:** cerca de 15 s por explicação. A explicação só aparece depois de conferida, então não é mostrada palavra por palavra.
 - **RAM:** com 8 GB, convém fechar outros programas (editor de código, abas do navegador) durante a apresentação.
 - **Tinta vermelha, laranja ou amarela** é ignorada de propósito, para não confundir com logotipos e dedos.
