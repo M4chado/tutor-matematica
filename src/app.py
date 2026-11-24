@@ -27,7 +27,7 @@ import gradio as gr  # noqa: E402
 import numpy as np  # noqa: E402
 
 from agente import Agente  # noqa: E402
-from config import LIMITE_CONFIANCA, MODELO_LLM  # noqa: E402
+from config import LIMITE_CONFIANCA, MODELO_LLM, RAIZ  # noqa: E402
 from ferramentas import CRUZES  # noqa: E402
 from leitor_webcam import carregar_modelo, ler_quadro, salvar_captura  # noqa: E402
 from segmentacao import desenhar_leitura, ler_conta, montar_expressao  # noqa: E402
@@ -326,8 +326,43 @@ def criar_interface(modelo_cnn, nome_voz=None):
     return interface
 
 
-def main():
+class _TelaEArquivo:
+    """Escreve na tela E no arquivo iniciar.log: se der erro na feira, a mensagem fica guardada."""
+
+    def __init__(self, tela, arquivo):
+        self.tela, self.arquivo = tela, arquivo
+
+    def write(self, texto):
+        for destino in (self.tela, self.arquivo):
+            try:
+                destino.write(texto)
+                destino.flush()
+            except Exception:
+                pass
+        return len(texto)
+
+    def flush(self):
+        for destino in (self.tela, self.arquivo):
+            try:
+                destino.flush()
+            except Exception:
+                pass
+
+    def __getattr__(self, nome):  # o resto (isatty, encoding...) vem da tela
+        return getattr(self.tela, nome)
+
+
+def _guardar_saida_em_arquivo():
     sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+    log = open(RAIZ / "iniciar.log", "w", encoding="utf-8")
+    log.write(f"Tutor aberto em {time.strftime('%d/%m/%Y %H:%M:%S')}\n")
+    sys.stdout = _TelaEArquivo(sys.stdout, log)
+    sys.stderr = _TelaEArquivo(sys.stderr, log)  # erros (Traceback) também vão para o arquivo
+
+
+def main():
+    _guardar_saida_em_arquivo()
     parser = argparse.ArgumentParser(description="Abre a interface do tutor no navegador.")
     parser.add_argument("--sem-navegador", action="store_true", help="não abre o navegador sozinho")
     args = parser.parse_args()

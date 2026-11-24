@@ -241,3 +241,24 @@ def test_caneta_azul_vale_e_tinta_vermelha_nao():
     assert len(simbolos) == 1
     x, _, w, _ = simbolos[0]["caixa"]
     assert 180 < x + w / 2 < 330                                  # é o traço azul
+
+
+@pytest.mark.skipif(not (MODELO.exists() and VALIDACAO.exists()), reason="modelo ou dados ainda não existem")
+def test_folha_com_luz_fraca_de_um_lado_cabelo_e_marcas_do_verso(conta_validacao, modelo):
+    """Reproduz o ensaio sem Wi-Fi que falhou: luz fraca e desigual, a cabeça de quem
+    segura a folha aparecendo atrás dela e marcas fracas do outro lado do papel."""
+    cena = np.full((720, 1280, 3), (150, 165, 175), np.uint8)                # parede bege
+    cv2.ellipse(cena, (640, 150), (110, 70), 0, 0, 360, (25, 25, 30), -1)   # cabeça (cabelo escuro)
+    alto, largo = conta_validacao.shape
+    y0, x0 = 170, (1280 - largo) // 2
+    folha = cv2.cvtColor(conta_validacao, cv2.COLOR_GRAY2BGR)
+    cv2.line(folha, (30, 40), (120, 40), (190, 190, 190), 4)                   # marca fraca do verso
+    cv2.circle(folha, (largo - 60, alto - 40), 18, (185, 185, 185), 3)        # outra marca fraca
+    cena[y0:y0 + alto, x0:x0 + largo] = folha
+    cv2.ellipse(cena, (640, 150 + 40), (90, 40), 0, 180, 360, (25, 25, 30), -1)  # cabelo por cima da borda
+    # Luz fraca vindo da direita: a esquerda fica com 45% do brilho
+    luz = np.linspace(0.45, 1.0, 1280, dtype=np.float32)[None, :, None]
+    cena = (cena.astype(np.float32) * luz).astype(np.uint8)
+
+    lidos = classificar(segmentar(cena, so_na_folha=True), modelo)
+    assert montar_expressao(lidos) == "12+7-3"

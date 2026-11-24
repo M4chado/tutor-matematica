@@ -107,7 +107,8 @@ def main():
             print(f"\n{caminho.name}: não consegui abrir ({erro})")
             continue
         # O mesmo caminho da webcam: só a tinta cercada de papel, pela função única preprocessar()
-        simbolos = classificar(segmentar(foto, so_na_folha=True), modelo)
+        # uma_linha=False: aqui os símbolos podem estar soltos pela folha (não é uma conta)
+        simbolos = classificar(segmentar(foto, so_na_folha=True, uma_linha=False), modelo)
         if not simbolos:
             print(f"\n{caminho.name}: nenhum símbolo encontrado "
                   "(o traço está fino/claro demais ou o símbolo encosta na borda da folha?)")

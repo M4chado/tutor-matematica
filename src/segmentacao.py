@@ -38,6 +38,11 @@ BRILHO_MIN_PAPEL = 100     # e é claro: abaixo disso (0 a 255) não é papel
 AREA_MIN_FOLHA = 0.02      # uma região de papel ocupa pelo menos 2% da foto
 RETANGULAR_MIN = 0.70      # e tem formato de retângulo (área / retângulo que a envolve)
 SATURACAO_COR = 70         # tinta com mais cor que isso e matiz quente é estampa/pele, não caneta
+GROSSURA_MAX = 3.0         # mancha 3x mais grossa que o traço típico não é escrita (cabelo, objeto)
+FECHAR_FOLHA = 0.12        # reentrâncias até 12% do lado menor da foto são tapadas (tamanho de um símbolo)
+ANEL = 5                   # largura (pixels) da volta do pedaço de tinta que é examinada
+PAPEL_EM_VOLTA_MIN = 0.70  # pelo menos 70% dessa volta precisa ser papel
+ESCURO_MAX = 150           # escrita tem tom até 150 (papel = 255); marcas do verso ficam acima de 155
 
 
 def mascara_da_folha(imagem_bgr, forma):
@@ -57,8 +62,11 @@ def mascara_da_folha(imagem_bgr, forma):
     pequena = cv2.resize(imagem_bgr, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA)
     hsv = cv2.cvtColor(pequena, cv2.COLOR_BGR2HSV)
     brilho = cv2.GaussianBlur(hsv[..., 2], (5, 5), 0)
-    limiar, _ = cv2.threshold(brilho, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    claro = brilho >= max(limiar, BRILHO_MIN_PAPEL)  # numa imagem toda escura, nada é papel
+    # "Claro" é medido com a luz CORRIGIDA (sem sombras nem degradê): com luz fraca
+    # ou vinda de um lado só, a folha inteira continua sendo papel, não só a parte iluminada
+    corrigida = cv2.GaussianBlur(normalizar_iluminacao(pequena, lado_maximo=LADO_DETECCAO), (5, 5), 0)
+    limiar, _ = cv2.threshold(corrigida, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    claro = (corrigida >= max(limiar, 180)) & (brilho >= BRILHO_MIN_PAPEL)  # e nada muito escuro é papel
     bordas = cv2.dilate(cv2.Canny(brilho, 20, 60), np.ones((3, 3), np.uint8))
     papel = (claro & (hsv[..., 1] < SATURACAO_PAPEL) & (bordas == 0)).astype(np.uint8)
     papel = cv2.morphologyEx(papel, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))  # corta pontes finas
@@ -77,7 +85,44 @@ def mascara_da_folha(imagem_bgr, forma):
             cv2.drawContours(folha, [contorno], -1, numero, thickness=cv2.FILLED)  # preenche os buracos
     if not folha.any():
         return None
+    # Fecha "reentrâncias" do tamanho de um símbolo: um símbolo encostado numa fronteira
+    # falsa (sombra, luz fraca) fica numa reentrância da folha, e não num buraco fechado
+    tamanho = max(3, int(FECHAR_FOLHA * min(folha.shape))) | 1
+    fechada = cv2.morphologyEx((folha > 0).astype(np.uint8), cv2.MORPH_CLOSE,
+                               cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (tamanho, tamanho)))
+    folha = np.where(folha > 0, folha, fechada).astype(np.uint8)
     return cv2.resize(folha, (forma[1], forma[0]), interpolation=cv2.INTER_NEAREST)
+
+
+def _linha_principal(grupos, rotulos, estatisticas):
+    """Escolhe a linha com mais tinta: para cada símbolo, a "faixa" da linha é a
+    altura dele (com folga); ficam os símbolos cujo centro cai na melhor faixa."""
+    def tinta(g):
+        return sum(int(estatisticas[r, cv2.CC_STAT_AREA]) for r in g.rotulos)
+
+    melhor, melhor_tinta = grupos, -1
+    for semente in grupos:
+        folga = 0.25 * semente.altura
+        topo, base = semente.y0 - folga, semente.y1 + folga
+        na_linha = [g for g in grupos if topo <= (g.y0 + g.y1) / 2 <= base]
+        total = sum(tinta(g) for g in na_linha)
+        if total > melhor_tinta:
+            melhor, melhor_tinta = na_linha, total
+    return melhor
+
+
+def _escuridao(limpa, rotulos, pedaco):
+    """Tom típico (mediana) da tinta de um pedaço, com a luz corrigida: 255 = papel, 0 = preto."""
+    regiao = rotulos[pedaco.y0:pedaco.y1, pedaco.x0:pedaco.x1] == pedaco.rotulos[0]
+    return float(np.median(limpa[pedaco.y0:pedaco.y1, pedaco.x0:pedaco.x1][regiao]))
+
+
+def _grossura(rotulos, pedaco):
+    """Grossura do traço de um pedaço de tinta, em pixels (o dobro da maior distância
+    de um ponto da tinta até a borda dela). Traço de caneta: fino. Mancha cheia: grossa."""
+    recorte = (rotulos[pedaco.y0:pedaco.y1, pedaco.x0:pedaco.x1] == pedaco.rotulos[0]).astype(np.uint8)
+    recorte = cv2.copyMakeBorder(recorte, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+    return 2 * float(cv2.distanceTransform(recorte, cv2.DIST_L2, 3).max())
 
 
 def _cor_de_caneta(pixels_bgr):
@@ -147,16 +192,20 @@ def _e_ponto_do_dividir(pequeno, grupos, referencia):
     return False
 
 
-def segmentar(imagem, so_na_folha=False):
+def segmentar(imagem, so_na_folha=False, uma_linha=True):
     """Encontra os símbolos de uma conta. Devolve uma lista (da esquerda para a
     direita) de dicionários com:
       - "caixa": (x, y, largura, altura) na imagem ORIGINAL
       - "recorte": o símbolo recortado (cinza, fundo branco)
       - "entrada": o recorte já pela função única, pronto para a CNN (45, 45, 1)
 
-    so_na_folha=True (fotos e webcam): só aceita tinta cercada de papel e com cor
-    de caneta. Assim mão, roupa, prateleira e o que mais estiver em volta da
-    folha são ignorados. Se nenhuma folha for encontrada, lê a imagem toda.
+    so_na_folha=True (fotos e webcam): só aceita tinta rodeada de papel, com cor
+    de caneta e traço fino. Assim mão, roupa, cabelo, prateleira e o que mais
+    estiver em volta da folha são ignorados. Se nenhuma folha for encontrada,
+    lê a imagem toda.
+    uma_linha=True (com so_na_folha): a conta é escrita em UMA linha, então só
+    ficam os símbolos alinhados na linha principal. Use False para fotos com
+    símbolos soltos pela folha (testar_imagem.py).
     """
     imagem = np.asarray(imagem)
     largura_original = imagem.shape[1]
@@ -165,7 +214,6 @@ def segmentar(imagem, so_na_folha=False):
     altura_img, largura_img = limpa.shape
 
     folha = mascara_da_folha(imagem, limpa.shape) if so_na_folha else None
-    regiao_do_pedaco = {}  # em qual região de papel está cada pedaço de tinta
     if folha is not None:
         # O limite tinta/papel é calculado só DENTRO da folha (o fundo não atrapalha)
         no_papel = folha > 0
@@ -173,7 +221,7 @@ def segmentar(imagem, so_na_folha=False):
         tinta = ((limpa <= min(limiar, 200)) & no_papel).astype(np.uint8)
         cores = cv2.resize(imagem if imagem.ndim == 3 else cv2.cvtColor(imagem, cv2.COLOR_GRAY2BGR),
                            (largura_img, altura_img), interpolation=cv2.INTER_AREA)
-        margem = np.ones((7, 7), np.uint8)  # o papel precisa cercar a tinta com folga de 3 pixels
+        margem = np.ones((2 * ANEL + 1, 2 * ANEL + 1), np.uint8)
     else:
         tinta = binarizar_foto(limpa).astype(np.uint8)
 
@@ -187,24 +235,16 @@ def segmentar(imagem, so_na_folha=False):
         if toca_borda or area < AREA_MINIMA:
             continue
         if folha is not None:
-            y0, y1, x0, x1 = max(y - 3, 0), y + h + 3, max(x - 3, 0), x + w + 3
-            este = rotulos[y0:y1, x0:x1] == i
-            em_volta = folha[y0:y1, x0:x1][cv2.dilate(este.astype(np.uint8), margem) > 0]
-            cercado = em_volta.min() > 0 and em_volta.min() == em_volta.max()  # papel de uma região só
-            if not cercado or not _cor_de_caneta(cores[y0:y1, x0:x1][este]):
+            # A volta do pedaço (um anel de ANEL pixels) precisa ser quase toda papel.
+            # "Quase": com luz ruim podem surgir fronteiras falsas no meio da folha.
+            y0, y1, x0, x1 = max(y - ANEL, 0), y + h + ANEL, max(x - ANEL, 0), x + w + ANEL
+            este = (rotulos[y0:y1, x0:x1] == i).astype(np.uint8)
+            anel = (cv2.dilate(este, margem) > 0) & (este == 0)
+            papel_em_volta = float((folha[y0:y1, x0:x1][anel] > 0).mean())
+            if papel_em_volta < PAPEL_EM_VOLTA_MIN or not _cor_de_caneta(cores[y0:y1, x0:x1][este > 0]):
                 continue
-            regiao_do_pedaco[i] = int(em_volta[0])
         pedacos.append(_Grupo(i, x, y, w, h))
 
-    # A conta está numa folha só: fica a região de papel com mais tinta escrita
-    # (outra região clara, como uma camisa branca, pode ter costuras e dobras)
-    if regiao_do_pedaco and pedacos:
-        tinta_por_regiao = {}
-        for p in pedacos:
-            r = regiao_do_pedaco[p.rotulos[0]]
-            tinta_por_regiao[r] = tinta_por_regiao.get(r, 0) + int(estatisticas[p.rotulos[0], cv2.CC_STAT_AREA])
-        escolhida = max(tinta_por_regiao, key=tinta_por_regiao.get)
-        pedacos = [p for p in pedacos if regiao_do_pedaco[p.rotulos[0]] == escolhida]
     if not pedacos:
         return []
 
@@ -213,6 +253,20 @@ def segmentar(imagem, so_na_folha=False):
     referencia = float(np.median([p.tamanho for p in pedacos if p.tamanho >= 0.3 * maior]))
     grandes = [p for p in pedacos if p.tamanho >= FRACAO_PEQUENO * referencia]
     pequenos = [p for p in pedacos if p.tamanho < FRACAO_PEQUENO * referencia]
+    if folha is not None:
+        # Marcas fracas (o que aparece do verso do papel, sujeira) são cinza-claras; a
+        # escrita de caneta é escura. Os pontinhos do ÷ não passam por aqui: eles têm a
+        # regra própria (só ficam acima/abaixo de um traço deitado).
+        grandes = [p for p in grandes if _escuridao(limpa, rotulos, p) <= ESCURO_MAX]
+        # Manchas "cheias" (cabelo, objetos) não são escrita: com a mesma caneta, todos
+        # os traços têm grossura parecida. Descarta o que é bem mais grosso que o típico
+        # (o típico vem só dos pedaços do tamanho de um símbolo, não da poeira).
+        if len(grandes) >= 2:
+            grossuras = [_grossura(rotulos, p) for p in grandes]
+            tipica = float(np.median(grossuras))
+            grandes = [p for p, g in zip(grandes, grossuras) if g <= GROSSURA_MAX * tipica]
+        if not grandes:
+            return []
     grupos = grandes + [p for p in pequenos if _e_ponto_do_dividir(p, grandes, referencia)]
 
     # 4. Junta pedaços empilhados, repetindo até não haver mais o que juntar
@@ -227,6 +281,11 @@ def segmentar(imagem, so_na_folha=False):
                     break
             if juntou:
                 break
+
+    # 4b. A conta é UMA linha: ficam só os símbolos alinhados na linha principal
+    # (descarta marcas soltas acima/abaixo, como uma costura de camisa)
+    if folha is not None and uma_linha and len(grupos) > 1:
+        grupos = _linha_principal(grupos, rotulos, estatisticas)
 
     # 5. Esquerda para a direita
     grupos.sort(key=lambda g: g.x0)

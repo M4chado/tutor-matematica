@@ -24,6 +24,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# Registro da última abertura do tutor (iniciar.bat)
+iniciar.log
+
 # Arquivos do Gradio e do sistema
 .gradio/
 flagged/
