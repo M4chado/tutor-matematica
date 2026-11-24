@@ -136,7 +136,7 @@ def verificar_dataset():
 
 
 def main():
-    print("\n=== Verificando o ambiente do Tutor de Matemática ===\n")
+    print("\n=== Verificando o ambiente do CalcuLetra ===\n")
     verificar_python()
     verificar_biblioteca("TensorFlow", "tensorflow")
     verificar_biblioteca("OpenCV", "cv2")

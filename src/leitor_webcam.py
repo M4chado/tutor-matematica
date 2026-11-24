@@ -34,8 +34,8 @@ except Exception:
     pass
 
 PASTA_CAPTURAS = RAIZ / "capturas"
-JANELA_CAMERA = "Tutor de Matematica - camera (ESPACO = ler, Q = sair)"
-JANELA_LEITURA = "Tutor de Matematica - leitura"
+JANELA_CAMERA = "CalcuLetra - camera (ESPACO = ler, Q = sair)"
+JANELA_LEITURA = "CalcuLetra - leitura"
 # Retângulo-guia: 80% da largura e 40% da altura, no centro da imagem
 # (usado quando nenhuma folha é encontrada na imagem)
 GUIA_LARGURA, GUIA_ALTURA = 0.80, 0.40

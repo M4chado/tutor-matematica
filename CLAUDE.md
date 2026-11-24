@@ -1,4 +1,4 @@
-# CLAUDE.md — Tutor de Matemática que Lê sua Letra
+# CLAUDE.md — CalcuLetra (Tutor de Matemática que Lê sua Letra)
 
 Este arquivo orienta o Claude Code no desenvolvimento deste projeto. Leia-o inteiro antes de qualquer ação e siga-o em todas as sessões.
 

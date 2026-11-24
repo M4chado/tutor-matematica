@@ -1,6 +1,6 @@
 @echo off
 REM ==========================================================================
-REM  Tutor de Matematica que Le sua Letra - abre tudo com dois cliques
+REM  CalcuLetra - Tutor de Matematica que Le sua Letra - abre tudo com dois cliques
 REM
 REM  1. Vai para a pasta do projeto (onde este arquivo esta)
 REM  2. Confere o ambiente virtual (.venv)
@@ -9,13 +9,13 @@ REM  4. Abre a interface no navegador (http://localhost:7860)
 REM ==========================================================================
 chcp 65001 >nul
 cd /d "%~dp0"
-title Tutor de Matematica
+title CalcuLetra
 set PYTHONIOENCODING=utf-8
 set PYTHONUNBUFFERED=1
 set GRADIO_ANALYTICS_ENABLED=False
 
 echo.
-echo  ===  Tutor de Matematica que Le sua Letra  ===
+echo  ===  CalcuLetra  -  Tutor de Matematica que Le sua Letra  ===
 echo.
 
 if not exist ".venv\Scripts\python.exe" (

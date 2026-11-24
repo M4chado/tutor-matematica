@@ -1,4 +1,6 @@
-# 🧮 Tutor de Matemática que Lê sua Letra
+# 🧮 CalcuLetra
+
+### Tutor de Matemática que Lê sua Letra
 
 O visitante escreve uma conta no papel, como `12 + 7 × 3`, e mostra para a webcam. O tutor **lê a letra** com uma rede neural treinada do zero, **resolve** a conta com um matemático exato (SymPy) e **explica passo a passo**, em português, com um LLM que roda no próprio notebook, **sem internet**.
 

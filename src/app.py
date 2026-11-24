@@ -33,7 +33,9 @@ from leitor_webcam import carregar_modelo, ler_quadro, salvar_captura  # noqa: E
 from segmentacao import desenhar_leitura, ler_conta, montar_expressao  # noqa: E402
 from voz import Voz, descrever_voz  # noqa: E402
 
-TITULO = "Tutor de Matemática que Lê sua Letra"
+NOME = "CalcuLetra"
+SUBTITULO = "Tutor de Matemática que Lê sua Letra"
+TITULO = f"{NOME} · {SUBTITULO}"  # aparece na aba do navegador
 PENSANDO = "🤔 Pensando e conferindo a conta..."
 
 # Fontes do próprio Windows (o padrão do Gradio baixa fontes da internet; na feira não tem)
@@ -42,7 +44,8 @@ TEMA = gr.themes.Soft(primary_hue="blue", neutral_hue="slate", text_size="lg",
 
 CSS = """
 .gradio-container { max-width: 1400px !important; margin: auto; }
-#titulo h1 { font-size: 2.3em; margin-bottom: 0; }
+#titulo h1 { font-size: 2.6em; margin-bottom: 0; }
+#titulo h3 { font-size: 1.35em; margin: .1em 0 0; opacity: .85; font-weight: 600; }
 #titulo p { font-size: 1.15em; opacity: .8; margin-top: .3em; }
 #chat .message { font-size: 1.25em !important; line-height: 1.5; }
 #chat .message strong { font-size: 1.05em; }
@@ -260,8 +263,8 @@ def criar_interface(modelo_cnn, nome_voz=None):
         agente = gr.State(Agente)  # um agente (com o seu histórico) para cada aba do navegador
         quadro_webcam = gr.State(None)
 
-        gr.Markdown(f"# 🧮 {TITULO}\nEscreva uma conta no papel, mostre para a câmera e o tutor **lê**, "
-                    f"**resolve** e **explica** passo a passo.", elem_id="titulo")
+        gr.Markdown(f"# 🧮 {NOME}\n### {SUBTITULO}\nEscreva uma conta no papel, mostre para a câmera e o "
+                    f"tutor **lê**, **resolve** e **explica** passo a passo.", elem_id="titulo")
 
         with gr.Row(equal_height=False):
             # ----- Coluna da esquerda: entrada (webcam ou desenho) -----
