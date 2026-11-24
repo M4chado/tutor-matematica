@@ -8,10 +8,10 @@ Os mesmos textos estão no topo de `gerar_banner.py`. Se mudar aqui, mude lá ta
 CalcuLetra: Tutor de Matemática que Lê sua Letra
 com Rede Neural e Agente de IA Local
 
-## Autor
+## Autores
 
-(seu nome completo)
-(seu e-mail @academico.unirv.edu.br)
+Eduardo Machado Martins (eduardo.martins@academico.unirv.edu.br)
+Augusto Wobeto Carvalho (augusto.carvalho@academico.unirv.edu.br)
 
 ## Introdução
 

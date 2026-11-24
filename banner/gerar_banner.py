@@ -33,6 +33,11 @@ from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 TITULO = ["CalcuLetra: Tutor de Matemática que Lê sua Letra",
           "com Rede Neural e Agente de IA Local"]
 
+AUTORES = [  # (nome, e-mail), na ordem em que aparecem no banner (da esquerda para a direita)
+    ("Eduardo Machado Martins", "eduardo.martins@academico.unirv.edu.br"),
+    ("Augusto Wobeto Carvalho", "augusto.carvalho@academico.unirv.edu.br"),
+]
+
 INTRODUCAO = [
     "Aprender matemática envolve escrever contas à mão, mas a maioria das ferramentas digitais "
     "exige que o aluno digite a expressão. Além disso, os modelos de linguagem (LLMs) explicam bem, "
@@ -85,6 +90,7 @@ EXPLICACAO_EXEMPLO = ("Primeiro fazemos a multiplicação, porque ela vem antes 
 MODELO = RAIZ / "Banner Workshop IA.png"
 AREAS = {
     "titulo":      (120, 555, 3285, 845),
+    "autores":     (120, 870, 3285, 1062),
     "introducao":  (119, 1245, 1673, 2500),
     "metodologia": (119, 2722, 1673, 3700),
     "fig_metod":   (119, 3790, 1673, 4300),
@@ -94,7 +100,11 @@ AREAS = {
 }
 FONTE = r"C:\Windows\Fonts\segoeui.ttf"
 FONTE_NEGRITO = r"C:\Windows\Fonts\segoeuib.ttf"
+FONTE_NEGRITO_ITALICO = r"C:\Windows\Fonts\segoeuiz.ttf"
 COR_TEXTO = (0, 0, 0)
+COR_AUTOR = (0, 74, 173)    # o azul do nome do autor no modelo
+# Medidas do modelo: o nome ocupa y 897-960 e o e-mail y 997-1041; a margem direita é x = 3255
+NOME_TOPO, NOME_ALTURA, EMAIL_TOPO, EMAIL_ALTURA, MARGEM_DIREITA = 897, 63, 997, 44, 3255
 AZUL, LARANJA, VERDE = "#2a78d6", "#eb6834", "#1baf7a"
 TINTA, TINTA_2, GRADE = "#0b0b0b", "#52514e", "#e4e3df"
 
@@ -275,6 +285,32 @@ def escrever(desenho, area, paragrafos, tamanho_max=52, justificar=True, recuo_p
     return tamanho, round(y)  # tamanho da letra usado e onde o texto terminou
 
 
+def _fonte_com_altura(caminho, exemplo, altura):
+    """Tamanho de letra cujo texto de exemplo tem a altura medida no modelo."""
+    for tamanho in range(30, 120):
+        fonte = ImageFont.truetype(caminho, tamanho)
+        _, topo, _, base = fonte.getbbox(exemplo)
+        if base - topo >= altura:
+            return fonte
+    return fonte
+
+
+def escrever_autores(desenho):
+    """Autores lado a lado, alinhados à direita como no modelo: nome azul em negrito
+    e, embaixo, o e-mail em negrito itálico."""
+    fonte_nome = _fonte_com_altura(FONTE_NEGRITO, "Nome Completo do Autor", NOME_ALTURA)
+    fonte_email = _fonte_com_altura(FONTE_NEGRITO_ITALICO, "seuemail@academico.unirv.edu.br", EMAIL_ALTURA)
+    direita = MARGEM_DIREITA
+    for nome, email in reversed(AUTORES):  # do último (à direita) para o primeiro
+        largura = max(desenho.textlength(nome, font=fonte_nome), desenho.textlength(email, font=fonte_email))
+        for texto, fonte, topo, cor in ((nome, fonte_nome, NOME_TOPO, COR_AUTOR),
+                                        (email, fonte_email, EMAIL_TOPO, COR_TEXTO)):
+            deslocamento = fonte.getbbox(texto)[1]  # o desenho começa um pouco acima da letra
+            desenho.text((direita - desenho.textlength(texto, font=fonte), topo - deslocamento), texto,
+                         font=fonte, fill=cor)
+        direita -= largura + 150  # espaço entre os autores
+
+
 def colar_figura(banner, area, caminho):
     x0, y0, x1, y1 = area
     figura = Image.open(caminho).convert("RGB")
@@ -309,6 +345,8 @@ def main():
         largura = desenho.textlength(linha, font=fonte)
         desenho.text((x0 + (x1 - x0 - largura) / 2, y0 + n * passo + (passo - tamanho * 1.25) / 2), linha,
                      font=fonte, fill=COR_TEXTO)
+
+    escrever_autores(desenho)
 
     tamanhos, fins = {}, {}
     for secao, paragrafos, opcoes in (
