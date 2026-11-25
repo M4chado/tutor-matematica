@@ -97,6 +97,10 @@ PALAVRAS = {"zero": "0", "dois": "2", "três": "3", "tres": "3", "quatro": "4", 
             "dividido": "÷", "divisão": "÷", "divisao": "÷", "igual": "=", "abre": "(", "fecha": ")"}
 SIM = {"sim", "s", "isso", "exato", "certo", "correto", "é", "e"}
 ORDINAIS = {"primeiro": 0, "primeira": 0, "segundo": 1, "segunda": 1, "terceiro": 2, "terceira": 2}
+# Respostas que dizem "isso não é símbolo nenhum" (sujeira, objeto ao lado da folha)
+REMOVER = "remover"
+NAO_E_SIMBOLO = re.compile(r"\b(nada|nenhum|nenhuma|sujeira|mancha|apag\w*|tir[ae]\w*|remov\w*)\b"
+                           r"|n[ãa]o (tem|existe|há|ha)\b")
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +139,7 @@ def perguntar_ao_visitante(simbolo, opcoes, posicao=None, leitura=None):
         texto = f"Li assim: **{leitura}**\n\nNão tenho certeza do {posicao}º símbolo. Ele é {escolha}?"
         if len(opcoes) == 1:
             texto += " (responda sim ou escreva o símbolo certo)"
+        texto += " Se não for símbolo nenhum (sujeira), responda **nenhum**."
     else:
         texto = f"Fiquei em dúvida sobre \"{simbolo}\". Você quis dizer {escolha}?"
     return {"pergunta": texto, "simbolo": simbolo, "opcoes": list(opcoes)}
@@ -142,8 +147,11 @@ def perguntar_ao_visitante(simbolo, opcoes, posicao=None, leitura=None):
 
 def interpretar_resposta(texto, opcoes):
     """Entende a resposta do visitante a uma pergunta. Ex.: "é o 7", "sim", "vezes".
-    Devolve o símbolo escolhido ou None se não deu para entender."""
+    Devolve o símbolo escolhido, REMOVER ("não é símbolo nenhum") ou None se
+    não deu para entender."""
     t = texto.strip().lower()
+    if NAO_E_SIMBOLO.search(t):
+        return REMOVER
     palavras = re.findall(r"\d|[a-zà-ú]+|[^\sa-zà-ú\d]", t)
     if not palavras:
         return None
@@ -263,12 +271,35 @@ def resultado_mencionado(calculo, texto):
     return any(_numero_no_texto(f, texto_n) for f in formas)
 
 
-def problemas_da_explicacao(texto, calculo, exercicio=None, veredito=None):
+NUMERO = r"\d+(?:,\d+)?"   # 12, 3,5
+
+
+def numeros_das_contas(texto):
+    """Números que aparecem dentro de contas escritas no texto ("7 × 3 = 21" -> 7, 3, 21).
+    Decimais ficam inteiros: "3,5" é um número só."""
+    t = re.sub(r"(\d)\s*[xX]\s*(?=\d)", r"\1 × ", texto.replace("−", "-").replace("–", "-").replace("*", "×"))
+    numeros = set()
+    for trecho in re.findall(r"[\d+\-×÷/()=\s,.]+", t):
+        if "=" in trecho and re.search(r"\d\s*\)?\s*[+\-×÷/]\s*\(?\s*\d", trecho):
+            numeros |= set(re.findall(NUMERO, trecho))
+    return numeros
+
+
+def problemas_da_explicacao(texto, calculo, exercicio=None, veredito=None, conhecidos=None):
     """Chain of Verification: lista o que está errado na explicação (vazia = aprovada).
 
-    exercicio: exercício criado neste turno (a resposta não pode aparecer).
-    veredito:  conferência da resposta do visitante feita pelo código (acertou ou não)."""
+    exercicio:  exercício criado neste turno (a resposta não pode aparecer).
+    veredito:   conferência da resposta do visitante feita pelo código (acertou ou não).
+    conhecidos: texto com tudo de onde o LLM pode tirar números (ferramentas e o que o
+                visitante escreveu). Número de conta fora disso foi INVENTADO, mesmo
+                que a conta inventada esteja certa (o LLM fez conta de cabeça)."""
     problemas = [f"A conta {c} está errada." for c in conferir_contas_do_texto(texto)]
+    if conhecidos is not None:
+        inventados = numeros_das_contas(texto) - set(re.findall(NUMERO, conhecidos))
+        if inventados:
+            problemas.append("A explicação tem contas com números que não vieram da ferramenta calcular ("
+                             + ", ".join(sorted(inventados)) + "). Não faça contas de cabeça: "
+                             "chame calcular com a conta do visitante.")
     if veredito:
         t = texto.lower()
         elogio = re.search(r"parab[ée]ns|(?<!não )acertou|(?<!não )está cert|muito bem|isso mesmo", t)
@@ -391,8 +422,14 @@ class Agente:
             escolha = interpretar_resposta(mensagem, self.simbolos[i]["opcoes"])
             if escolha is None:
                 return self._perguntar_proxima(inicio, prefixo="Desculpe, não entendi. ")
-            self.simbolos[i].update(simbolo=escolha, confianca=1.0)
             self.duvidas.pop(0)
+            if escolha == REMOVER:   # era sujeira: sai da conta (as posições seguintes andam uma casa)
+                del self.simbolos[i]
+                self.duvidas = [d - 1 if d > i else d for d in self.duvidas]
+                if not self.simbolos:
+                    return self._resposta("Então não sobrou nenhum símbolo. Mostre a conta de novo.", "erro", inicio)
+            else:
+                self.simbolos[i].update(simbolo=escolha, confianca=1.0)
             if self.duvidas:
                 return self._perguntar_proxima(inicio, prefixo="Combinado! ")
             return self._conta_pronta(inicio)
@@ -431,6 +468,12 @@ class Agente:
             texto = (f"Li **{ambiguidade['expressao']}**, mas acho que algo não está certo: "
                      + " ".join(validacao["problemas"])
                      + "\n\nConfira o papel e mostre de novo, ou escreva a conta aqui no chat.")
+            # Fica no histórico: se o visitante corrigir a leitura, o LLM sabe de que conta ele fala
+            self.historico += [{"role": "user", "content":
+                                f"A câmera leu a conta {ambiguidade['expressao']}, mas ela não é válida: "
+                                + " ".join(validacao["problemas"]) + " Se eu corrigir a leitura, "
+                                "chame calcular com a conta corrigida, usando só os símbolos lidos."},
+                               {"role": "assistant", "content": texto}]
             return self._resposta(texto, "erro", inicio, expressao=ambiguidade["expressao"])
         self.conta = ambiguidade["expressao"]
         pedido = f"O visitante mostrou a conta {self.conta}. Resolva com a ferramenta calcular e explique."
@@ -505,7 +548,8 @@ class Agente:
             texto = limpar_texto(resposta["texto"])
             tentativas += 1
             problemas = problemas_da_explicacao(texto, calculos[-1] if calculos else None,
-                                                eventos.get("exercicio"), veredito)
+                                                eventos.get("exercicio"), veredito,
+                                                conhecidos=self._numeros_permitidos(pedido, calculos, eventos))
             if not problemas:
                 aprovada = True
                 break
@@ -546,6 +590,17 @@ class Agente:
                               veredito=veredito,
                               verificacao={"aprovada": aprovada, "tentativas": tentativas,
                                            "problemas": problemas_vistos, "reprovadas": reprovadas, "aviso": aviso})
+
+    def _numeros_permitidos(self, pedido, calculos, eventos):
+        """Tudo de onde a explicação pode tirar números: o que o visitante escreveu,
+        os cálculos deste turno, o último cálculo da conversa e os exercícios."""
+        partes = [pedido]
+        for c in calculos + ([self.ultimo_calculo] if self.ultimo_calculo else []):
+            partes.append(json.dumps(_resumo_para_llm(c), ensure_ascii=False))
+        for e in (eventos.get("exercicio"), self.exercicio):
+            if e:
+                partes.append(str(e.get("exercicio", "")))
+        return " ".join(partes)
 
     def _historico_recente(self):
         """Últimas mensagens, começando sempre numa mensagem do visitante."""

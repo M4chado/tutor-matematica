@@ -262,3 +262,27 @@ def test_folha_com_luz_fraca_de_um_lado_cabelo_e_marcas_do_verso(conta_validacao
 
     lidos = classificar(segmentar(cena, so_na_folha=True), modelo)
     assert montar_expressao(lidos) == "12+7-3"
+
+
+@pytest.mark.skipif(not (MODELO.exists() and VALIDACAO.exists()), reason="modelo ou dados ainda não existem")
+def test_marca_solta_longe_da_conta_e_ignorada(conta_validacao, modelo):
+    """Reproduz o erro da pasta "provas de erros": uma marca escura na altura da
+    conta, mas longe dela (um objeto da prateleira ao lado da folha), virava um "+"."""
+    alto = conta_validacao.shape[0]
+    folha = cv2.copyMakeBorder(conta_validacao, 0, 0, 500, 0, cv2.BORDER_CONSTANT, value=245)
+    meio = alto // 2
+    cv2.line(folha, (80, meio - 15), (80, meio + 15), 30, 6)     # marquinha solta, bem à esquerda
+    cv2.line(folha, (65, meio), (95, meio), 30, 6)
+    cena = cv2.copyMakeBorder(cv2.cvtColor(folha, cv2.COLOR_GRAY2BGR), 150, 150, 80, 80,
+                              cv2.BORDER_CONSTANT, value=(90, 110, 130))
+    assert montar_expressao(classificar(segmentar(cena, so_na_folha=True), modelo)) == "12+7-3"
+
+
+def test_preto_amarronzado_com_a_folha_perto_da_camera_vale():
+    """Reproduz o "9 - 3 - 2" lido como "932": com a folha perto da câmera, o preto da
+    caneta puxou para o marrom (saturação 73) e os sinais de menos eram descartados
+    como se fossem pele. Tinta quase preta é caneta, qualquer que seja a cor."""
+    folha = np.full((400, 600, 3), 235, np.uint8)
+    cv2.line(folha, (250, 200), (350, 200), (25, 35, 45), 10)    # "−" preto amarronzado (BGR)
+    cena = cv2.copyMakeBorder(folha, 100, 100, 100, 100, cv2.BORDER_CONSTANT, value=(60, 70, 80))
+    assert len(segmentar(cena, so_na_folha=True)) == 1

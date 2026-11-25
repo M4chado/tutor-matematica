@@ -38,11 +38,13 @@ BRILHO_MIN_PAPEL = 100     # e é claro: abaixo disso (0 a 255) não é papel
 AREA_MIN_FOLHA = 0.02      # uma região de papel ocupa pelo menos 2% da foto
 RETANGULAR_MIN = 0.70      # e tem formato de retângulo (área / retângulo que a envolve)
 SATURACAO_COR = 70         # tinta com mais cor que isso e matiz quente é estampa/pele, não caneta
+BRILHO_TINTA_ESCURA = 90   # ...a não ser que seja quase preta (brilho até 90 de 255): aí é caneta
 GROSSURA_MAX = 3.0         # mancha 3x mais grossa que o traço típico não é escrita (cabelo, objeto)
 FECHAR_FOLHA = 0.12        # reentrâncias até 12% do lado menor da foto são tapadas (tamanho de um símbolo)
 ANEL = 5                   # largura (pixels) da volta do pedaço de tinta que é examinada
 PAPEL_EM_VOLTA_MIN = 0.70  # pelo menos 70% dessa volta precisa ser papel
 ESCURO_MAX = 150           # escrita tem tom até 150 (papel = 255); marcas do verso ficam acima de 155
+VAO_MAX = 3.0              # um vão maior que 3 símbolos separa a conta de uma marca solta longe dela
 
 
 def mascara_da_folha(imagem_bgr, forma):
@@ -111,6 +113,25 @@ def _linha_principal(grupos, rotulos, estatisticas):
     return melhor
 
 
+def _bloco_principal(grupos, rotulos, estatisticas):
+    """A conta é um bloco só: os símbolos ficam perto uns dos outros. Um vão
+    horizontal maior que VAO_MAX símbolos separa "ilhas"; fica a ilha com mais
+    tinta. Assim some, por exemplo, um objeto da prateleira que apareceu ao
+    lado da folha, longe da conta."""
+    def tinta(g):
+        return sum(int(estatisticas[r, cv2.CC_STAT_AREA]) for r in g.rotulos)
+
+    grupos = sorted(grupos, key=lambda g: g.x0)
+    tipico = float(np.median([g.tamanho for g in grupos]))
+    ilhas, fim = [[grupos[0]]], grupos[0].x1
+    for g in grupos[1:]:
+        if g.x0 - fim > VAO_MAX * tipico:
+            ilhas.append([])           # vão grande demais: começa outra ilha
+        ilhas[-1].append(g)
+        fim = max(fim, g.x1)
+    return max(ilhas, key=lambda ilha: sum(tinta(g) for g in ilha))
+
+
 def _escuridao(limpa, rotulos, pedaco):
     """Tom típico (mediana) da tinta de um pedaço, com a luz corrigida: 255 = papel, 0 = preto."""
     regiao = rotulos[pedaco.y0:pedaco.y1, pedaco.x0:pedaco.x1] == pedaco.rotulos[0]
@@ -128,7 +149,11 @@ def _grossura(rotulos, pedaco):
 def _cor_de_caneta(pixels_bgr):
     """Tinta de caneta é escura, preta ou azul. Vermelho, laranja, amarelo e cor
     de pele (logotipos, dedos) são descartados."""
-    matiz, saturacao, _ = np.median(cv2.cvtColor(pixels_bgr.reshape(-1, 1, 3), cv2.COLOR_BGR2HSV), axis=0)[0]
+    matiz, saturacao, brilho = np.median(cv2.cvtColor(pixels_bgr.reshape(-1, 1, 3), cv2.COLOR_BGR2HSV), axis=0)[0]
+    if brilho <= BRILHO_TINTA_ESCURA:
+        # Quase preto é caneta, qualquer que seja a "cor": em pixels tão escuros a cor
+        # é quase só ruído, e com a folha perto da câmera o preto pode puxar para o marrom
+        return True
     quente = matiz < 35 or matiz > 155       # escala do OpenCV: 0 a 180
     return not (saturacao > SATURACAO_COR and quente)
 
@@ -286,6 +311,7 @@ def segmentar(imagem, so_na_folha=False, uma_linha=True):
     # (descarta marcas soltas acima/abaixo, como uma costura de camisa)
     if folha is not None and uma_linha and len(grupos) > 1:
         grupos = _linha_principal(grupos, rotulos, estatisticas)
+        grupos = _bloco_principal(grupos, rotulos, estatisticas)
 
     # 5. Esquerda para a direita
     grupos.sort(key=lambda g: g.x0)

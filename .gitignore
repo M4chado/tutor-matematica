@@ -16,6 +16,8 @@ models/*
 # Fotos tiradas pelo usuário para testar (podem ser grandes)
 fotos_teste/
 capturas/
+# Prints de erros encontrados nos testes (mostram a tela e o ambiente)
+provas de erros/
 # Figura gerada com as fotos reais do usuário (mostra pessoa e ambiente: privacidade)
 reports/figuras/teste_fotos_usuario.png
 

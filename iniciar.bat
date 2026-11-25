@@ -25,6 +25,13 @@ if not exist ".venv\Scripts\python.exe" (
     goto erro
 )
 
+REM --- O tutor ja esta aberto em outra janela? -----------------------------
+REM Se estiver, a porta 7860 esta ocupada e um 2o tutor nao consegue abrir.
+REM Entao so abrimos o navegador no tutor que ja esta rodando.
+if exist "%SystemRoot%\System32\curl.exe" (
+    "%SystemRoot%\System32\curl.exe" -s -o nul -m 3 http://127.0.0.1:7860/ && goto ja_aberto
+)
+
 REM --- Ollama: ja esta respondendo? ---------------------------------------
 ollama list >nul 2>&1
 if not errorlevel 1 goto ollama_ok
@@ -61,6 +68,17 @@ echo  (Tudo o que aparece aqui fica salvo em iniciar.log)
 echo.
 ".venv\Scripts\python.exe" src\app.py
 if errorlevel 1 goto erro
+exit /b 0
+
+:ja_aberto
+echo  O CalcuLetra JA ESTA ABERTO em outra janela. Abrindo o navegador nele...
+start "" http://localhost:7860
+echo.
+echo  Para REINICIAR o tutor (por exemplo, depois de atualizar o codigo):
+echo  feche a outra janela "CalcuLetra" e de dois cliques no iniciar.bat de novo.
+echo.
+echo  Aperte uma tecla para fechar esta janela.
+pause >nul
 exit /b 0
 
 :erro

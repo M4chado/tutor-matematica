@@ -228,3 +228,56 @@ def test_historico_guarda_a_conversa():
 def test_calibracao_usa_validacao_e_nunca_o_teste():
     codigo = (Path(ag.__file__).parent / "calibrar_confianca.py").read_text(encoding="utf-8")
     assert "validacao.npz" in codigo and "teste.npz" not in codigo
+
+
+# ---------------------------------------------------------------------------
+# Casos da pasta "provas de erros" (sujeira lida como "+" e conta inventada)
+# ---------------------------------------------------------------------------
+
+def sujeira_e_7_dividido_por_2():
+    """Leitura real da foto: um "+" falso com 37% antes de 7÷2."""
+    simbolos = conta("7/2")
+    return [{"simbolo": "+", "confianca": 0.37, "top3": [("+", 0.37), ("4", 0.26), ("x", 0.14)]}] + simbolos
+
+
+@pytest.mark.parametrize("texto", ["nenhum", "não é nada", "é sujeira", "não tem esse símbolo", "pode tirar"])
+def test_visitante_pode_dizer_que_nao_e_simbolo(texto):
+    assert interpretar_resposta(texto, ["+", "4", "x"]) == ag.REMOVER
+
+
+def test_sujeira_removida_e_a_conta_certa_e_calculada():
+    llm = LLMFalso(("calcular", {"expressao": "7÷2"}), "Dividimos 7 por 2: 7 ÷ 2 = 3,5. O resultado é 3,5!")
+    agente = Agente(chat=llm)
+    r = agente.ler_conta(sujeira_e_7_dividido_por_2())
+    assert r["tipo"] == "pergunta" and "nenhum" in r["texto"]
+    r = agente.responder("nenhum, não tem nada aí")
+    assert r["calculo"]["expressao"] == "7 ÷ 2"
+    assert r["verificacao"]["aprovada"]
+
+
+def test_llm_nao_pode_inventar_uma_conta_que_nao_esta_na_folha():
+    """O erro real: depois da leitura inválida "+7÷2", o LLM inventou 7 × 3 + 2 − 1
+    e fez a conta de cabeça. As contas estavam certas, mas os números eram inventados."""
+    inventada = ("A conta é: 7 × 3 + 2 − 1. Primeiro, 7 × 3 = 21. Agora 21 + 2 − 1. "
+                 "21 + 2 = 23, depois 23 − 1 = 22. O resultado é 22!")
+    llm = LLMFalso(inventada, inventada, inventada)
+    agente = Agente(chat=llm)
+    simbolos = sujeira_e_7_dividido_por_2()
+    simbolos[0]["confianca"] = 0.99                      # sem pergunta: vai direto para a validação
+    assert agente.ler_conta(simbolos)["tipo"] == "erro"
+    r = agente.responder("não tem um + no começo, o primeiro número é um 7")
+    assert "22" not in r["texto"]                         # a conta inventada não chega ao visitante
+    assert not r["verificacao"]["aprovada"]
+    assert any("não vieram da ferramenta" in p for p in r["verificacao"]["problemas"])
+    # e o LLM recebeu a leitura da câmera no histórico, para saber de que conta se fala
+    assert any("+7÷2" in m["content"] for m in llm.recebidas[0] if m["role"] == "user")
+
+
+def test_correcao_da_leitura_com_calcular_e_aceita():
+    llm = LLMFalso(("calcular", {"expressao": "7÷2"}), "7 ÷ 2 = 7/2, ou seja, 3,5. O resultado é 3,5!")
+    agente = Agente(chat=llm)
+    simbolos = sujeira_e_7_dividido_por_2()
+    simbolos[0]["confianca"] = 0.99
+    agente.ler_conta(simbolos)
+    r = agente.responder("não tem um + no começo")
+    assert r["calculo"]["resultado"] in {"7/2", "3,5"} and r["verificacao"]["aprovada"]
