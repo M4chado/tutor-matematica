@@ -61,6 +61,8 @@ flowchart LR
 
 Dê **dois cliques em `iniciar.bat`**. Ele abre o Ollama (se estiver fechado), carrega a rede neural, o LLM e a voz, e abre o navegador em `http://localhost:7860`. Para fechar, feche a janela preta.
 
+Se o tutor **já estiver aberto** em outra janela, o `iniciar.bat` não abre um segundo: ele avisa e abre o navegador no que já está rodando. Para **reiniciar** (por exemplo, depois de atualizar o código), feche a janela "CalcuLetra" antiga e dê dois cliques de novo.
+
 Pelo terminal, com o `.venv` ativado:
 
 | Comando | O que faz |
@@ -72,13 +74,14 @@ Pelo terminal, com o `.venv` ativado:
 | `python src/agente.py "12+7*3"` | conversa com o tutor pelo terminal |
 | `python src/agente.py "12+7*3" --duvida 4=1` | simula um símbolo duvidoso |
 | `python src/voz.py` | testa a voz |
-| `python -m pytest` | roda os 141 testes automáticos |
+| `python -m pytest` | roda os 151 testes automáticos |
 
 ### Dicas para a leitura dar certo
 
 - Use **canetinha preta grossa** em **papel branco liso**, sem pauta nem quadriculado.
 - Escreva a conta **em uma linha**, com símbolos de uns 3 a 5 cm de altura.
-- Ilumine bem a folha. Ela pode ser segurada na mão: o programa encontra a folha sozinho.
+- Ilumine bem a folha. Ela pode ser segurada na mão: o programa encontra a folha sozinho. Não precisa encher a tela com ela: uma distância média (a folha ocupando cerca de metade da imagem) funciona bem.
+- Se o tutor perguntar sobre um "símbolo" que na verdade é sujeira ou algo fora da folha, responda **nenhum**: ele sai da conta.
 - Escreva no meio da folha: um símbolo que encosta na borda do papel pode ser descartado.
 - Escreva o `1` como um traço reto, sem "gancho" no alto: com gancho, a rede pode confundi-lo com `)`.
 - Plano B: a aba **✏️ Desenhar** da interface, para escrever a conta com o mouse.
@@ -135,10 +138,12 @@ Se a confiança da CNN em um símbolo fica abaixo de **80%**, o agente pergunta 
 
 - **O LLM não faz contas:** ele chama a ferramenta `calcular` (SymPy, com um analisador próprio, **sem `eval()`**), que devolve os passos na ordem da escola.
 - **Regras no código, não só no prompt:**
-  - símbolo duvidoso → pergunta antes de calcular;
+  - símbolo duvidoso → pergunta antes de calcular (o visitante pode responder "nenhum" se for sujeira);
+  - dúvida só entre `x` e `×` → não pergunta: o contexto decide (entre dois números é vezes; com `=` é a incógnita);
   - LLM esqueceu a ferramenta → o código calcula mesmo assim;
+  - leitura impossível (ex.: conta começando com `+`) → avisa o visitante e guarda a leitura no histórico, para o LLM saber de que conta se fala se o visitante corrigir pelo chat;
   - a resposta do visitante a um exercício é conferida pelo SymPy.
-- **Conferência (Chain of Verification):** toda "conta = resultado" escrita na explicação é recalculada. Se houver erro, o LLM refaz (até 3 vezes). Se ainda assim errar, ou se o Ollama estiver fechado, aparece uma explicação automática montada dos passos do SymPy.
+- **Conferência (Chain of Verification):** toda "conta = resultado" escrita na explicação é recalculada, e cada número das contas precisa ter vindo da ferramenta `calcular` ou do visitante. Um número que não veio de lugar nenhum foi **inventado** (o LLM fez conta de cabeça), mesmo que a conta esteja certa. Se houver erro, o LLM refaz (até 3 vezes). Se ainda assim errar, ou se o Ollama estiver fechado, aparece uma explicação automática montada dos passos do SymPy.
 - **Tempo** (notebook Ryzen 5 4600H, só CPU):
   - explicação: 13 a 23 s;
   - exercício: cerca de 9 s;
@@ -161,6 +166,16 @@ Se a confiança da CNN em um símbolo fica abaixo de **80%**, o agente pergunta 
 
   O mais importante: **em nenhuma das 4 contas o tutor deu uma resposta errada.** Quando a rede estava em dúvida, ele perguntou. Quando a leitura saiu impossível (um `)` sem `(`), ele avisou e pediu para conferir. É o agente protegendo o visitante dos erros da rede.
 
+- **Testes com as contas de exemplo (25/11), Pessoa 1:** encontraram 3 erros, todos corrigidos e cobertos por testes automáticos novos (cada um falha com o código antigo):
+
+  | O que aconteceu | Causa | Correção |
+  | --- | --- | --- |
+  | `7 ÷ 2` lido como `+7÷2`; ao ser corrigido pelo chat, o LLM **inventou** a conta `7 × 3 + 2 − 1 = 22` | um objeto da prateleira, ao lado da folha, virou um `+` (37%); depois, o LLM não sabia o que tinha sido lido e fez conta de cabeça. A conferência não pegou porque as contas inventadas estavam certas | marcas soltas a mais de 3 símbolos de distância da conta são ignoradas; o visitante pode responder "nenhum"; a leitura vai para o histórico; a conferência rejeita números que não vieram da ferramenta |
+  | `9 − 3 − 2` lido como `932` com a folha bem perto da câmera | a câmera ajustou a cor sozinha e o preto da caneta puxou para o marrom; os `−` foram descartados como se fossem pele | tinta quase preta (brilho até 90 de 255) vale sempre como caneta |
+  | `iniciar.bat` não abria ("Cannot find empty port 7860") | o tutor anterior continuava aberto em outra janela | o `iniciar.bat` detecta o tutor aberto e abre o navegador nele |
+
+  Com o LLM real, a foto do primeiro erro passou a dar `7 ÷ 2 = 3,5`. Nas 21 fotos reais salvas, cada correção mudou só a leitura da foto que tinha dado errado.
+
 - **Outras pessoas:** os testes com a letra de outras pessoas (Pessoas 2 a 10) serão feitos na feira e registrados em [`reports/testes_com_pessoas.md`](reports/testes_com_pessoas.md).
 
 ### 7. Ensaio final (sem internet)
@@ -171,12 +186,12 @@ Se a confiança da CNN em um símbolo fica abaixo de **80%**, o agente pergunta 
 
 ### 8. Testes automáticos
 
-**141 testes** com `pytest`. Eles cobrem:
+**151 testes** com `pytest`. Eles cobrem:
 
 - pré-processamento;
-- segmentação, incluindo uma cena bagunçada com "prateleira", "camisa" e "dedos";
+- segmentação, incluindo uma cena bagunçada com "prateleira", "camisa" e "dedos", uma marca solta longe da conta e tinta preta amarronzada;
 - ferramentas de cálculo;
-- agente, com um LLM falso que erra de propósito;
+- agente, com um LLM falso que erra de propósito (inclusive inventando uma conta que não está na folha);
 - interface;
 - voz.
 
@@ -193,7 +208,8 @@ Um teste confere que o código das ferramentas não usa `eval`, `exec` nem `symp
 - **Os pares `x`/`×` e `1`/`(`/`)`** são os mais confundidos pela CNN, inclusive nos testes reais (o `1` com gancho vira `)`). O primeiro é resolvido pelo contexto. O segundo, perguntando ao visitante quando a rede está em dúvida, ou avisando que a conta saiu mal escrita quando ela erra com confiança alta.
 - **LLM na CPU:** cerca de 15 s por explicação. A explicação só aparece depois de conferida, então não é mostrada palavra por palavra.
 - **RAM:** com 8 GB, convém fechar outros programas (editor de código, abas do navegador) durante a apresentação.
-- **Tinta vermelha, laranja ou amarela** é ignorada de propósito, para não confundir com logotipos e dedos.
+- **Tinta vermelha, laranja ou amarela** é ignorada de propósito, para não confundir com logotipos e dedos. Tinta quase preta vale sempre, mesmo quando a câmera a deixa amarronzada.
+- **Marcas a mais de 3 símbolos de distância da conta** são ignoradas: escreva a conta com os símbolos próximos uns dos outros.
 
 ---
 
@@ -229,7 +245,7 @@ tutor-matematica/
 │   ├── agente.py, calibrar_confianca.py       # Etapa 6: o agente
 │   ├── app.py               # Etapa 7: a interface
 │   └── voz.py               # Etapa 8: a voz
-├── tests/                   # 141 testes automáticos
+├── tests/                   # 151 testes automáticos
 ├── reports/                 # resultados e figuras
 └── PROGRESSO.md             # diário do projeto, etapa por etapa
 ```
