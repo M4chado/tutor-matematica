@@ -223,8 +223,9 @@ def _limpar_segmento(seg):
 
 
 def _valor(seg):
-    """Valor exato de um pedaço de conta (só números e operações), ou None."""
-    if not seg or not re.search(r"\d", seg):
+    """Valor exato de um pedaço de conta (só números e operações), ou None.
+    Pedaço com a incógnita (9x - 18) não tem valor fixo: não dá para conferir."""
+    if not seg or not re.search(r"\d", seg) or re.search(r"[xX]", seg):
         return None
     r = calcular(seg)
     return sp.Rational(r["valor"]) if r["ok"] and r["tipo"] == "expressao" else None
@@ -235,8 +236,10 @@ def conferir_contas_do_texto(texto):
 
     Ex.: "7 × 3 = 21" ✔ ; "7 × 3 = 20" ✘. Devolve a lista de contas erradas."""
     erradas = []
-    # pedaços do texto formados só por números, operações, parênteses e "="
-    for trecho in re.findall(r"[\d+\-×÷/()=\s,.]+", _para_conferir(texto)):
+    # pedaços do texto formados só por números, operações, parênteses, "=" e a incógnita x.
+    # O x entra no pedaço para "9x - 18 = 18" não virar "- 18 = 18" (que pareceria errado);
+    # o x de palavras ("exemplo") não conta, porque está grudado em outras letras.
+    for trecho in re.findall(r"(?:[\d+\-×÷/()=\s,.]|(?<![A-Za-zÀ-ÿ])[xX](?![A-Za-zÀ-ÿ]))+", _para_conferir(texto)):
         if "=" not in trecho:
             continue
         segmentos = [_limpar_segmento(s) for s in trecho.split("=")]
@@ -489,6 +492,11 @@ class Agente:
             if conta_esperada:  # trava: na conta nova, calcula exatamente o que a CNN leu
                 expressao = conta_esperada
             calculo = calcular(resolver_ambiguidade_x(expressao)["simbolos"])
+            if any(c.get("expressao") == calculo.get("expressao") for c in calculos):
+                # conta já calculada neste turno: repetir só gasta tempo do LLM
+                eventos["repetida"] = True
+                return {"ok": True, "aviso": "Esta conta já foi calculada; o resultado está acima. "
+                                             "Não chame calcular de novo: escreva a explicação."}
             calculos.append(calculo)
             return _resumo_para_llm(calculo)
         if nome == "gerar_exercicio":
@@ -512,11 +520,12 @@ class Agente:
         calculos, eventos, usadas, problemas_vistos, reprovadas = [], {}, [], [], []
         chamadas_llm, tentativas, forcado = 0, 0, False
         texto, aprovada, aviso = "", False, None
+        ferramentas = FERRAMENTAS_LLM   # some se o LLM repetir uma conta já calculada
 
         for _ in range(MAX_RODADAS_FERRAMENTAS + MAX_TENTATIVAS + 1):
             mensagens = [{"role": "system", "content": PROMPT_SISTEMA}] + self._historico_recente() + turno + rascunho
             try:
-                resposta = self.chat(mensagens, FERRAMENTAS_LLM)
+                resposta = self.chat(mensagens, ferramentas)
             except Exception as erro:  # Ollama fechado, modelo não instalado, etc.
                 aviso = f"LLM indisponível ({type(erro).__name__}); explicação automática."
                 break
@@ -525,7 +534,14 @@ class Agente:
             if resposta["chamadas"]:  # o LLM decidiu usar ferramentas
                 for c in resposta["chamadas"]:
                     resultado = self._executar(c["nome"], c["argumentos"], conta_esperada, calculos, eventos)
-                    usadas.append(c["nome"])
+                    if eventos.pop("repetida", False):
+                        # TRAVA: o LLM pediu a mesma conta de novo. Na próxima chamada ele fica
+                        # sem ferramentas, então só pode escrever a explicação (antes, ele chegou
+                        # a chamar calcular 6 vezes seguidas e o turno levou mais de 3 minutos).
+                        ferramentas = []
+                        usadas.append(c["nome"] + " (repetida)")
+                    else:
+                        usadas.append(c["nome"])
                     turno.append(_mensagem_de_chamada(c["nome"], c["argumentos"]))
                     turno.append({"role": "tool", "tool_name": c["nome"],
                                   "content": json.dumps(resultado, ensure_ascii=False)})

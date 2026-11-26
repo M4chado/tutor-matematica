@@ -21,9 +21,11 @@ class LLMFalso:
     def __init__(self, *roteiro):
         self.roteiro = list(roteiro)
         self.recebidas = []   # mensagens que o agente mandou em cada chamada
+        self.ferramentas = []  # ferramentas oferecidas ao LLM em cada chamada
 
     def __call__(self, mensagens, ferramentas):
         self.recebidas.append(mensagens)
+        self.ferramentas.append(ferramentas)
         if not self.roteiro:
             raise AssertionError("O agente chamou o LLM mais vezes do que o esperado")
         passo = self.roteiro.pop(0)
@@ -165,6 +167,37 @@ def test_conferir_contas_do_texto():
     assert conferir_contas_do_texto("x = 8 ÷ 2 = 4 e 7 ÷ 2 = 3,5 e 7 x 3 = 21 e 10 − (2 − 5) = 13") == []
     assert len(conferir_contas_do_texto("5 × 4 = 25")) == 1
     assert len(conferir_contas_do_texto("12 + 7 × 3 = 12 + 21 = 34")) == 1
+
+
+# Explicação CERTA que o verificador reprovava: ele ignorava o "9x" e conferia "- 18 = 18"
+BOA_EQUACAO = ("Primeiro juntamos os termos com x: 4x + 5x = 9x. A conta fica 9x - 18 = 18. "
+               "Depois passamos o 18 para o outro lado: 9x = 18 + 18 = 36. Então x = 36 ÷ 9 = 4. "
+               "Conferindo: 9x - 18 = 9 × 4 - 18 = 36 - 18 = 18. O x vale 4!")
+
+
+def test_conferencia_entende_contas_com_incognita():
+    assert conferir_contas_do_texto(BOA_EQUACAO) == []
+    assert conferir_contas_do_texto("**9x - 18 = 18**") == []
+    # contas erradas continuam sendo pegas, mesmo perto do x ou de palavras com x
+    assert len(conferir_contas_do_texto("9x = 18 + 18 = 35")) == 1
+    assert len(conferir_contas_do_texto("Por exemplo, 3 + 4 = 8.")) == 1
+
+
+def test_explicacao_de_equacao_certa_e_aprovada_de_primeira():
+    llm = LLMFalso(("calcular", {"expressao": "4x+5x-18=18"}), BOA_EQUACAO)
+    r = Agente(chat=llm).ler_conta(conta("4x+5x-18=18"))
+    assert r["texto"] == BOA_EQUACAO
+    assert r["verificacao"]["aprovada"] and r["verificacao"]["tentativas"] == 1
+    assert r["chamadas_llm"] == 2
+
+
+def test_llm_repetindo_calcular_fica_sem_ferramentas():
+    """O erro real: o LLM chamou calcular 6 vezes seguidas com a mesma conta."""
+    llm = LLMFalso(("calcular", {"expressao": "12+7×3"}), ("calcular", {"expressao": "12+7×3"}), BOA_33)
+    r = Agente(chat=llm).ler_conta(conta("12+7*3"))
+    assert r["texto"] == BOA_33
+    assert r["ferramentas"] == ["calcular", "calcular (repetida)"]
+    assert llm.ferramentas[1] and llm.ferramentas[2] == []   # depois da repetição, só pode escrever
 
 
 def test_limpa_latex():
