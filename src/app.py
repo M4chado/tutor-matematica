@@ -305,7 +305,7 @@ def criar_interface(modelo_cnn, nome_voz=None):
                                         value=False, interactive=bool(nome_voz), scale=3,
                                         info=f"Voz: {nome_voz}" if nome_voz else "Nenhuma voz encontrada no Windows")
                     parar_voz = gr.Button("⏹ Parar voz", size="sm", scale=1, interactive=bool(nome_voz))
-                with gr.Accordion("🔍 Por dentro do agente (para o professor)", open=False):
+                with gr.Accordion("🔍 Por dentro do agente ", open=False):
                     painel = gr.Markdown("Ainda não houve nenhuma leitura.")
 
         # ----- Eventos -----
